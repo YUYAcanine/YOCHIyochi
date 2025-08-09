@@ -1,207 +1,165 @@
-'use client';
-
-import { useState, useEffect } from 'react';
-import Papa from 'papaparse';
-import imageCompression from 'browser-image-compression';
-import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
-
-/* ---------- 型 ---------- */
-type Vertex = { x: number; y: number };
-type BoundingBox = { description: string; boundingPoly: { vertices: Vertex[] } };
-type ParsedRow = { name: string; description: string };
+import Image from "next/image";
 
 export default function Home() {
-  const [image, setImage] = useState<string | null>(null);
-  const [boxes, setBoxes] = useState<BoundingBox[]>([]);
-  const [selectedText, setSelectedText] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [menuDescriptions, setMenuDescriptions] = useState<Record<string, string>>({});
-  const [scale, setScale] = useState<{ x: number; y: number }>({ x: 1, y: 1 });
-
-  /* ---------- CSV 読み込み ---------- */
-  useEffect(() => {
-    fetch('/menu_descriptions.csv')
-      .then(r => r.text())
-      .then(csv =>
-        Papa.parse(csv, {
-          header: true,
-          complete: res => {
-            const map: Record<string, string> = {};
-            (res.data as ParsedRow[]).forEach(({ name, description }) => {
-              if (name && description) map[name.trim()] = description.trim();
-            });
-            setMenuDescriptions(map);
-          },
-        }),
-      );
-  }, []);
-
-  /* ---------- 画像アップロード ---------- */
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setLoading(true);
-
-    try {
-      const compressed = await imageCompression(file, {
-        maxSizeMB: 1,
-        maxWidthOrHeight: 1024,
-        useWebWorker: true,
-      });
-
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const base64 = reader.result as string;
-        setImage(base64);
-
-        const res = await fetch('/api/vision-ocr', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image: base64.split(',')[1] }),
-        });
-
-        const json = await res.json();
-        const anns = (json.responses?.[0]?.textAnnotations ?? []) as unknown[];
-
-        setBoxes(
-          anns.slice(1).map((unk): BoundingBox => {
-            const a = unk as {
-              description: string;
-              boundingPoly: { vertices: Partial<Vertex>[] };
-            };
-            return {
-              description: a.description,
-              boundingPoly: {
-                vertices: a.boundingPoly.vertices.map(v => ({
-                  x: v.x ?? 0,
-                  y: v.y ?? 0,
-                })),
-              },
-            };
-          }),
-        );
-      };
-      reader.readAsDataURL(compressed);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  /* ---------- 画像読込時にスケール取得 ---------- */
-  const onImgLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    const el = e.currentTarget;
-    setScale({ x: el.clientWidth / el.naturalWidth, y: el.clientHeight / el.naturalHeight });
-  };
-
-  /* ---------- 戻る ---------- */
-  const resetAll = () => {
-    setImage(null);
-    setBoxes([]);
-    setSelectedText('');
-  };
-
-  /* ---------- ボックススタイル ---------- */
-  const styleFromBox = (b: BoundingBox): React.CSSProperties => {
-    const [v0, v1, v2] = b.boundingPoly.vertices;
-    return {
-      position: 'absolute',
-      left: v0.x * scale.x,
-      top: v0.y * scale.y,
-      width: (v1.x - v0.x) * scale.x,
-      height: (v2.y - v1.y) * scale.y,
-      border: '2px solid red',
-    };
-  };
-
-  /* ---------- JSX ---------- */
   return (
-    <main className="h-screen flex flex-col text-black select-none">
-      {/* === 画像が無いときの中央カメラボタン === */}
-      {!image && (
-        <div className="flex-1 flex items-center justify-center bg-gray-100">
-          <label className="flex flex-col items-center justify-center w-40 h-40 bg-white shadow-lg rounded-full cursor-pointer hover:scale-105 transition">
-            {/* SVG カメラアイコン */}
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="w-16 h-16 text-gray-700"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M3 7h4l2-3h6l2 3h4a2 2 0 012 2v10a2 2 0 01-2 2H3a2 2 0 01-2-2V9a2 2 0 012-2z"
-              />
-              <circle cx="12" cy="13" r="4" />
-            </svg>
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={handleUpload}
-              className="hidden"
-            />
-          </label>
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-zinc-950 dark:to-zinc-900 text-foreground">
+      {/* Header */}
+      <header className="mx-auto max-w-5xl px-6 sm:px-10 pt-10 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Image
+            className="dark:invert"
+            src="/next.svg"
+            alt="Next.js logo"
+            width={120}
+            height={26}
+            priority
+          />
+          <span className="hidden sm:inline-block text-sm text-zinc-500 dark:text-zinc-400">
+            App Router / Tailwind / TypeScript
+          </span>
         </div>
-      )}
+        <a
+          className="inline-flex items-center gap-2 rounded-full border border-black/10 dark:border-white/15 bg-white/70 dark:bg-zinc-900/60 backdrop-blur px-4 py-2 text-sm font-medium hover:shadow-sm transition"
+          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <Image aria-hidden src="/globe.svg" alt="" width={16} height={16} />
+          Docs
+        </a>
+      </header>
 
-      {/* === 画像ビュー === */}
-      {image && (
-        <section className="flex-1 bg-black overflow-hidden relative">
-          {/* 戻るボタン（矢印） */}
-          <button
-            onClick={resetAll}
-            className="fixed top-12 right-3 z-20 bg-white/80 hover:bg-white p-2 rounded shadow text-xl"
-            aria-label="戻る"
-          >
-            ←
-          </button>
+      {/* Main card */}
+      <main className="mx-auto max-w-5xl px-6 sm:px-10 py-10">
+        <section className="relative isolate">
+          {/* subtle focus ring */}
+          <div className="absolute inset-0 -z-10 blur-3xl opacity-20 dark:opacity-30"
+               aria-hidden />
+          <div className="rounded-2xl border border-black/5 dark:border-white/10 bg-white/80 dark:bg-zinc-900/60 backdrop-blur shadow-sm">
+            <div className="p-8 sm:p-12">
+              <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight">
+                Welcome to your Next.js app
+              </h1>
+              <p className="mt-3 text-zinc-600 dark:text-zinc-400">
+                ここから好きなUIに育てていきましょう。編集は
+                <code className="mx-1 rounded bg-black/5 dark:bg-white/10 px-1.5 py-0.5 font-mono text-[0.9em]">
+                  app/page.tsx
+                </code>
+                をどうぞ。
+              </p>
 
-          <TransformWrapper doubleClick={{ disabled: true }}>
-            <TransformComponent wrapperClass="w-full h-full">
-              <div className="relative inline-block mb-80">
-                <img
-                  src={image}
-                  onLoad={onImgLoad}
-                  alt="menu"
-                  className="block max-w-full h-auto"
-                />
-                {boxes.map((b, i) => (
-                  <div
-                    key={i}
-                    style={styleFromBox(b)}
-                    onClick={() => setSelectedText(b.description)}
+              {/* steps */}
+              <ol className="mt-8 space-y-2 font-mono text-sm text-zinc-700 dark:text-zinc-300">
+                <li className="flex items-start gap-2">
+                  <span className="mt-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 text-[11px]">1</span>
+                  Get started by editing <code className="mx-1 rounded bg-black/5 dark:bg-white/10 px-1">app/page.tsx</code>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 text-[11px]">2</span>
+                  Save and see your changes instantly.
+                </li>
+              </ol>
+
+              {/* actions */}
+              <div className="mt-10 flex flex-col sm:flex-row items-center gap-4">
+                <a
+                  className="group inline-flex items-center justify-center gap-2 rounded-xl bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 px-5 h-12 font-medium shadow-sm ring-1 ring-black/10 dark:ring-white/20 hover:translate-y-[-1px] transition"
+                  href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Image
+                    className="dark:invert-0"
+                    src="/vercel.svg"
+                    alt="Vercel"
+                    width={20}
+                    height={20}
                   />
-                ))}
+                  Deploy now
+                  <span aria-hidden className="transition group-hover:translate-x-0.5">→</span>
+                </a>
+
+                <a
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-black/10 dark:border-white/15 bg-white/70 dark:bg-zinc-900/40 backdrop-blur px-5 h-12 font-medium hover:shadow-sm transition"
+                  href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Image aria-hidden src="/file.svg" alt="" width={16} height={16} />
+                  Learn
+                </a>
+
+                <a
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-black/10 dark:border-white/15 bg-white/70 dark:bg-zinc-900/40 backdrop-blur px-5 h-12 font-medium hover:shadow-sm transition"
+                  href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Image aria-hidden src="/window.svg" alt="" width={16} height={16} />
+                  Templates
+                </a>
               </div>
-            </TransformComponent>
-          </TransformWrapper>
+            </div>
+          </div>
         </section>
-      )}
 
-      {/* ローディング */}
-      {loading && (
-        <p className="absolute top-4 right-4 bg-white/80 px-3 py-1 rounded">OCR処理中...</p>
-      )}
-
-      {/* ポップアップ */}
-      {selectedText && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white p-6 pb-12 shadow-xl z-30 text-lg">
-          <button
-            onClick={() => setSelectedText('')}
-            className="absolute top-2 right-2 text-red-600 text-4xl leading-none"
-            aria-label="閉じる"
+        {/* Quick links row */}
+        <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <a
+            href="https://nextjs.org"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group rounded-2xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-zinc-900/60 backdrop-blur p-5 hover:shadow-sm transition"
           >
-            ×
-          </button>
-          <h2 className="font-bold mb-2">選択された料理：</h2>
-          <p className="mb-2">{selectedText}</p>
-          <h2 className="font-bold">説明：</h2>
-          <p>{menuDescriptions[selectedText] || '説明は見つかりませんでした'}</p>
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Image aria-hidden src="/globe.svg" alt="" width={16} height={16} />
+              nextjs.org
+              <span aria-hidden className="ml-auto opacity-60 group-hover:opacity-100 transition">→</span>
+            </div>
+            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+              公式サイト。最新情報とAPIリファレンス。
+            </p>
+          </a>
+
+          <a
+            href="https://tailwindcss.com/docs"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group rounded-2xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-zinc-900/60 backdrop-blur p-5 hover:shadow-sm transition"
+          >
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Image aria-hidden src="/window.svg" alt="" width={16} height={16} />
+              Tailwind Docs
+              <span aria-hidden className="ml-auto opacity-60 group-hover:opacity-100 transition">→</span>
+            </div>
+            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+              ユーティリティクラスで高速にスタイル。
+            </p>
+          </a>
+
+          <a
+            href="https://vercel.com/docs"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group rounded-2xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-zinc-900/60 backdrop-blur p-5 hover:shadow-sm transition"
+          >
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Image aria-hidden src="/vercel.svg" alt="" width={16} height={16} />
+              Vercel Docs
+              <span aria-hidden className="ml-auto opacity-60 group-hover:opacity-100 transition">→</span>
+            </div>
+            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+              デプロイや環境変数の設定ガイド。
+            </p>
+          </a>
         </div>
-      )}
-    </main>
+      </main>
+
+      {/* Footer */}
+      <footer className="mx-auto max-w-5xl px-6 sm:px-10 pb-10 text-center text-xs text-zinc-500 dark:text-zinc-400">
+        Built with Next.js + Tailwind. Edit <code className="bg-black/5 dark:bg-white/10 px-1 rounded">app/page.tsx</code>.
+      </footer>
+    </div>
   );
 }
+
