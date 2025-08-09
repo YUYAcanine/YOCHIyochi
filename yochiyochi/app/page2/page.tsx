@@ -1,14 +1,79 @@
+"use client";
+
+import { useState, ChangeEvent } from "react";
+import Image from "next/image";
+import { Camera, Image as ImageIcon } from "lucide-react";
 import Link from "next/link";
 
 export default function Page2() {
+  const [images, setImages] = useState<File[]>([]);
+
+  const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
+    setImages(Array.from(e.target.files));
+  };
+
   return (
-    <main className="flex min-h-screen items-center justify-center bg-green-50">
-      <Link
-        href="/page3"
-        className="rounded-lg bg-green-600 px-6 py-3 text-white font-semibold shadow hover:bg-green-500 transition"
-      >
-        Go to Page 3
-      </Link>
+    <main className="flex flex-col min-h-screen items-center justify-start bg-green-50 pt-10">
+      {/* カメラ/ファイル選択 */}
+      <div className="flex space-x-4 mt-6 justify-center">
+        {/* カメラ（スマホで背面カメラを優先） */}
+        <label
+          htmlFor="camera-upload"
+          className="w-24 h-24 bg-white/70 flex items-center justify-center rounded cursor-pointer shadow"
+        >
+          <Camera className="w-8 h-8" />
+          <input
+            id="camera-upload"
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleImageChange}
+            className="hidden"
+          />
+        </label>
+
+        {/* ファイル選択（いわゆる“フォルダーを開く”ダイアログ） */}
+        <label
+          htmlFor="file-upload"
+          className="w-24 h-24 bg-white/70 flex items-center justify-center rounded cursor-pointer shadow"
+        >
+          <ImageIcon className="w-8 h-8" />
+          <input
+            id="file-upload"
+            type="file"
+            accept="image/*"
+            onChange={handleImageChange}
+            className="hidden"
+          />
+        </label>
+      </div>
+
+      {/* プレビュー */}
+      {images.length > 0 && (
+        <div className="flex flex-wrap justify-center gap-6 mt-6 px-4">
+          {images.map((img, i) => (
+            <Image
+              key={i}
+              src={URL.createObjectURL(img)}
+              alt="preview"
+              width={192}
+              height={192}
+              className="rounded shadow"
+            />
+          ))}
+        </div>
+      )}
+
+      {/* 下部のページ遷移ボタン */}
+      <div className="mt-auto mb-10">
+        <Link
+          href="/page3"
+          className="rounded-lg bg-green-600 px-6 py-3 text-white font-semibold shadow hover:bg-green-500 transition"
+        >
+          Go to Page 3
+        </Link>
+      </div>
     </main>
   );
 }
