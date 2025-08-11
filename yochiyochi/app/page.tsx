@@ -1,15 +1,16 @@
-import Link from "next/link";
+"use client";
 
-export default function Home() {
+import Button from "@/components/Button";
+
+export default function Page1() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gray-50">
-      <Link
-        href="/page2"
-        className="rounded-lg bg-blue-600 px-6 py-3 text-white font-semibold shadow hover:bg-blue-500 transition"
-      >
-        Go to Page 2
-      </Link>
+    <main className="flex min-h-screen items-center justify-center bg-white">
+      {/* メニューを登録するボタン */}
+      <Button href="/page2" variant="blue">
+        メニューをチェックする
+      </Button>
     </main>
   );
 }
+
 
