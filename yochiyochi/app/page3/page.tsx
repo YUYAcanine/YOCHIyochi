@@ -4,8 +4,10 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+
 import { ChecklistButton, ChecklistPanel } from "@/components/checklist";
 import Button from "@/components/Button";
+
 
 export default function Page3() {
   const [imgSrc, setImgSrc] = useState<string | null>(null);
@@ -40,8 +42,6 @@ export default function Page3() {
       {/* ホームにもどると写真を変えるボタン */}
       <Button href="/page2" variant="green">写真を変える</Button>
       <Button href="/" variant="gray">ホームに戻る</Button>
-      
-
     </main>
   );
 }
