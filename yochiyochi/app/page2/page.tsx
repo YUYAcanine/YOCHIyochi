@@ -4,13 +4,29 @@ import { useState, ChangeEvent } from "react";
 import Image from "next/image";
 import { Camera, Image as ImageIcon } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation"; //画像を読み込むとpage3 へ遷移させれるようにするためのライブラリ
+import Button from "@/components/Button";
 
 export default function Page2() {
   const [images, setImages] = useState<File[]>([]);
+  const router = useRouter(); 
 
   const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
     setImages(Array.from(e.target.files));
+
+     // 写真を格納するfiles を定義
+    const files = Array.from(e.target.files);
+    setImages(files);
+
+    // page2.tsx の handleImageChange 内
+    const reader = new FileReader();
+    reader.onload = () => {
+      localStorage.setItem("uploadedImage", reader.result as string);
+      router.push("/page3");　// 写真を読み込み完了後にpage3に遷移
+    };
+    reader.readAsDataURL(files[0]);
+
   };
 
   return (
@@ -64,15 +80,9 @@ export default function Page2() {
           ))}
         </div>
       )}
-
-      {/* 下部のページ遷移ボタン */}
+      {/* ホームにもどるボタン */}
       <div className="mt-auto mb-10">
-        <Link
-          href="/page3"
-          className="rounded-lg bg-green-600 px-6 py-3 text-white font-semibold shadow hover:bg-green-500 transition"
-        >
-          Go to Page 3
-        </Link>
+        <Button href="/" variant="gray">ホームに戻る</Button>
       </div>
     </main>
   );
