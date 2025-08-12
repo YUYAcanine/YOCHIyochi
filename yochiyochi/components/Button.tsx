@@ -5,7 +5,7 @@ import clsx from "clsx";
 type Props = {
   href: string;
   children: React.ReactNode;
-  variant?: "purple" | "green" | "blue";
+  variant?: "purple" | "green" | "blue" | "gray" ;
 };
 
 export default function Button({ href, children, variant = "purple" }: Props) {
