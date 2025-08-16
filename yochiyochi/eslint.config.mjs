@@ -11,6 +11,15 @@ const compat = new FlatCompat({
 
 const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
+  // 特定ファイルだけ no-explicit-any を無効化
+  {
+    files: ["app/page3/page.tsx","app/api/vision-ocr/route.ts"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+    },
+  },
 ];
+
+
 
 export default eslintConfig;
