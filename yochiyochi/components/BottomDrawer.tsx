@@ -1,62 +1,56 @@
 // components/BottomDrawer.tsx
 "use client";
-import React from "react";
+import * as React from "react";
 import PhaseDescriptionBox from "@/components/PhaseDescriptionBox";
-import { PHASE_LABELS } from "@/components/checklist";
 import type { PhaseKey } from "@/types/food";
 
-const chipBg: Record<PhaseKey, string> = {
-  phase1: "#3b82f622",
-  phase2: "#22c55e22",
-  phase3: "#f59e0b22",
-  phase4: "#ec489922",
-};
+type Variant = "forbidden" | "ok" | "none";
 
 type Props = {
   openText: string;
   description: string;
   phase: PhaseKey;
+  variant: Variant;
   onClose: () => void;
 };
 
-export default function BottomDrawer({ openText, description, phase, onClose }: Props) {
-  const open = !!openText;
+export default function BottomDrawer({
+  openText,
+  description,
+  phase,
+  variant,
+  onClose,
+}: Props) {
+  const open = !!openText && !!description && variant !== "none";
+
   return (
-    <div
-      role="dialog"
-      aria-hidden={open ? "false" : "true"}
-      aria-label="料理の説明"
-      className={`fixed inset-x-0 bottom-0 z-30 transform transition-transform duration-300 ${
+    <aside
+      className={`fixed left-0 right-0 bottom-0 z-40 transform transition-transform duration-300 ${
         open ? "translate-y-0" : "translate-y-full"
       }`}
+      role="dialog"
+      aria-label="説明"
     >
-      <div className="relative bg-white p-6 pb-10 shadow-xl rounded-t-2xl">
-        <button
-          onClick={onClose}
-          className="absolute top-2 right-3 text-gray-600 hover:text-gray-900 text-2xl leading-none"
-          aria-label="閉じる"
-          title="閉じる"
-        >
-          &times;
-        </button>
-
-        <h2 className="font-bold mb-1">選択された料理</h2>
-        <p className="mb-3 break-words">{openText}</p>
-
-        <div className="flex items-baseline gap-2 mb-2">
-          <h2 className="font-bold">選択中のチェックリスト：</h2>
-          <span
-            className="inline-block px-2 py-0.5 rounded text-base"
-            style={{ backgroundColor: chipBg[phase], color: "#1f2937" }}
+      <div className="mx-auto max-w-3xl rounded-t-2xl border border-zinc-200 bg-white shadow-2xl p-4">
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-sm text-zinc-500">
+            選択テキスト：<span className="font-medium text-zinc-800">{openText}</span>
+          </div>
+          <button
+            type="button"
+            className="px-3 py-1 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-700"
+            onClick={onClose}
           >
-            {PHASE_LABELS[phase]}
-          </span>
+            閉じる
+          </button>
         </div>
 
-        <h2 className="font-bold">説明（{PHASE_LABELS[phase]}）</h2>
-        <PhaseDescriptionBox description={description} phase={phase} />
-        {!description && <p className="text-zinc-500">説明は見つかりませんでした</p>}
+        <PhaseDescriptionBox
+          description={description}
+          phase={phase}
+          variant={variant}
+        />
       </div>
-    </div>
+    </aside>
   );
 }

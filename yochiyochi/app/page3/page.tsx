@@ -11,6 +11,9 @@ import { useOCR } from "@/hooks/useOCR";
 import { canon } from "@/lib/textNormalize";
 import type { PhaseKey } from "@/types/food";
 
+type Box = { description: string };
+type Variant = "forbidden" | "ok" | "none";
+
 export default function Page3() {
   const { phase } = useChecklist();
   const [imgSrc, setImgSrc] = useState<string | null>(null);
@@ -20,28 +23,33 @@ export default function Page3() {
   const menuMap = useMenuMap("/yochiyochi.csv");
 
   // 画像 → OCR（枠とスケール）
-  const { boxes, loading, scale, onImgLoad } = useOCR(imgSrc);
+  const { boxes, loading, scale, onImgLoad } = useOCR(imgSrc || null);
 
   // 画像は localStorage から取得
   useEffect(() => {
     setImgSrc(localStorage.getItem("uploadedImage"));
   }, []);
 
-  // 現在段階の説明を返す（完全一致のみ）
-  const getPhaseDescriptionForText = (text?: string) => {
-    const key = canon(text);
+  // テキスト→説明/バリアント分類
+  const classify = (raw?: string): { variant: Variant; text: string } => {
+    const key = canon(raw);
     const info = key ? menuMap[key] : undefined;
-    return info?.[phase]?.trim() || "";
+    const val = info?.[phase]?.trim();
+
+    if (!val) return { variant: "none", text: "" };
+    if (val === "×") return { variant: "forbidden", text: "食べさせてはいけません" };
+    return { variant: "ok", text: val };
   };
 
-  // 表示するボックス（説明があるものだけ）
-  const visibleFilter = (b: { description: string }) =>
-    !!getPhaseDescriptionForText(b.description);
+  // 表示対象（説明あり or ×）
+  const visibleFilter = (b: Box) => classify(b.description).variant !== "none";
 
-  const selectedDescription = useMemo(
-    () => (selectedText ? getPhaseDescriptionForText(selectedText) : ""),
-    [selectedText, menuMap, phase]
-  );
+  const selected = useMemo(() => {
+    if (!selectedText) return { variant: "none" as Variant, text: "" };
+    return classify(selectedText);
+  }, [selectedText, menuMap, phase]);
+
+  const getBoxVariant = (b: Box): Variant => classify(b.description).variant;
 
   return (
     <main className="min-h-screen bg-purple-50 flex flex-col items-center justify-center gap-8 p-6 relative">
@@ -54,11 +62,12 @@ export default function Page3() {
             <OcrImage
               imgSrc={imgSrc}
               boxes={boxes}
-              scale={scale}
+              scale={scale}                 // number でも {scale,offsetX,offsetY} でもOK
               phase={phase as PhaseKey}
               onImgLoad={onImgLoad}
               filter={visibleFilter}
               onPick={setSelectedText}
+              getBoxVariant={getBoxVariant}
             />
           </TransformComponent>
         </TransformWrapper>
@@ -77,8 +86,9 @@ export default function Page3() {
 
       <BottomDrawer
         openText={selectedText}
-        description={selectedDescription}
+        description={selected.text}
         phase={phase as PhaseKey}
+        variant={selected.variant}
         onClose={() => setSelectedText("")}
       />
     </main>
