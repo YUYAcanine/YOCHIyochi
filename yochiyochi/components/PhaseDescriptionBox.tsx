@@ -1,28 +1,30 @@
 // components/PhaseDescriptionBox.tsx
 import React from "react";
+import type { PhaseKey } from "@/types/food";
 
-type Props = {
-  description?: string;
-  phase: string; // phase1, phase2, phase3, phase4
+type Variant = "forbidden" | "ok" | "none";
+
+type Props = { description?: string; phase: PhaseKey; variant?: Variant };
+
+// デフォルトは黄、禁止のみ赤
+const classesByVariant: Record<Variant, string> = {
+  forbidden: "bg-red-100 border-red-400 text-red-800",
+  ok: "bg-yellow-100 border-yellow-400 text-zinc-800",
+  none: "bg-gray-100 border-gray-400 text-zinc-800",
 };
 
-const phaseColors: Record<string, string> = {
-  phase1: "bg-blue-100 border-blue-400",    // 離乳初期
-  phase2: "bg-green-100 border-green-400",  // 離乳中期
-  phase3: "bg-yellow-100 border-yellow-400",// 離乳後期
-  phase4: "bg-pink-100 border-pink-400",    // 完了期
-};
-
-export default function PhaseDescriptionBox({ description, phase }: Props) {
-  if (!description) return null; // 説明がない場合は表示しない
-
-  const colorClass = phaseColors[phase] || "bg-gray-100 border-gray-400";
+export default function PhaseDescriptionBox({ description, phase, variant = "ok" }: Props) {
+  if (!description) return null;
+  const colorClass = classesByVariant[variant] ?? classesByVariant.ok;
 
   return (
-    <textarea
-      value={description}
-      readOnly
-      className={`w-full p-2 border rounded mt-2 ${colorClass}`}
-    />
+    <div className={`w-full p-2 border rounded mt-2 ${colorClass}`}>
+      <div className="text-xs text-zinc-500 mb-1">時期: {phase}</div>
+      <textarea
+        value={description}
+        readOnly
+        className="w-full bg-transparent outline-none resize-y"
+      />
+    </div>
   );
 }
