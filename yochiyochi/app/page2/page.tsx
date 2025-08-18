@@ -3,7 +3,7 @@
 
 import { useState, useMemo, ChangeEvent } from "react";
 import Image from "next/image";
-import { Camera, Image as ImageIcon } from "lucide-react";
+import { Camera, Image as ImageIcon, Loader2 } from "lucide-react";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import { ChecklistButton, ChecklistPanel, useChecklist } from "@/components/checklist";
 import OcrImage from "@/components/OcrImage";
@@ -14,6 +14,7 @@ import { canon } from "@/lib/textNormalize";
 import type { PhaseKey } from "@/types/food";
 import imageCompression from "browser-image-compression";
 import Ribbon from "@/components/Ribbon";
+import LoadingSpinner from "@/components/LoadingSpinner";
 
 type Box = { description: string };
 type Variant = "forbidden" | "ok" | "none";
@@ -153,7 +154,6 @@ export default function Page2() {
   );
 
   // =============== OCR View（アップロード後） ===============
-  // 画面高 - リボン高 をほぼフルに使う（リボン高はCSS変数で同期）
   const OcrView = (
     <div className="relative flex flex-col flex-grow h-[calc(100svh-var(--ribbon-h))] px-3">
       <div className="flex-none py-2">
@@ -166,9 +166,11 @@ export default function Page2() {
         className={`relative flex-grow transition-transform duration-500 will-change-transform ${
           drawerOpen ? "-translate-y-[var(--ribbon-shift)]" : "translate-y-0"
         }`}
+        aria-busy={loading}
       >
         <div className="absolute inset-0">
-          <TransformWrapper doubleClick={{ disabled: true }}>
+          {/* 読み込み中はパン・ズームを無効化 */}
+          <TransformWrapper doubleClick={{ disabled: true }} disabled={loading}>
             <TransformComponent wrapperClass="w-full h-full">
               <div className="w-full h-full">
                 <OcrImage
@@ -205,20 +207,12 @@ export default function Page2() {
           </a>
         </div>
       </div>
-
-      {loading && (
-        <p className="absolute top-2 right-3 z-50 bg-white/90 px-3 py-1 rounded-md text-[#6B5A4E]">
-          OCR処理中...
-        </p>
-      )}
     </div>
   );
 
   // ====== リボンの寸法をCSS変数で一元管理 ======
-  // 見た目の高さ（RibbonのheightClassと一致）
-  const RIBBON_HEIGHT = "6rem" as const;    // h-24
-  // 完全に隠すためのシフト量（影・余白込みで多めに）
-  const RIBBON_SHIFT = "10rem" as const;
+  const RIBBON_HEIGHT = "6rem" as const; // h-24
+  const RIBBON_SHIFT = "7rem" as const;
 
   return (
     <main
@@ -230,12 +224,11 @@ export default function Page2() {
         } as React.CSSProperties
       }
     >
-      {/* 固定リボン（常に表示）。BottomDrawer表示中はリボンを上に隠す */}
       <Ribbon
         href="/"
         logoSrc="/yoyochi.jpg"
         alt="よちヨチ ロゴ"
-        heightClass="h-24"              // = 6rem
+        heightClass="h-24"
         bgClass="bg-[#F0E4D8]"
         containerClassName={`transition-transform duration-500 will-change-transform ${
           drawerOpen ? "-translate-y-[var(--ribbon-shift)]" : "translate-y-0"
@@ -243,12 +236,10 @@ export default function Page2() {
         logoClassName="h-20 w-auto object-contain"
       />
 
-      {/* コンテンツはリボン見かけの高さ分だけ下げる */}
       <div className="flex-grow pt-24">
         {imgSrc ? OcrView : UploadView}
       </div>
 
-      {/* ★ transform の外に置く：パネルは元の最下部固定のまま */}
       <BottomDrawer
         openText={selectedText}
         description={selected.text}
@@ -256,10 +247,9 @@ export default function Page2() {
         variant={selected.variant}
         onClose={() => setSelectedText("")}
       />
+
+      {/* ★ OCR処理中にスピナーを表示 */}
+      {loading && <LoadingSpinner />}
     </main>
   );
 }
-
-
-
-
