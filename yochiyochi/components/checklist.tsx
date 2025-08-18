@@ -78,39 +78,59 @@ export function useChecklist() {
   return ctx;
 }
 
-/* ---------- 右上固定ボタン（濃いグレー＋ハンバーガー） ---------- */
+/* ---------- 右上固定ボタン（濃い茶＋ハンバーガー） ---------- */
 export function ChecklistButton() {
   const { open, setOpen } = useChecklist();
   return (
     <button
       type="button"
       onClick={() => setOpen(!open)}
-      className="fixed top-4 right-4 z-50 flex flex-col justify-center items-center gap-1.5 px-5 py-3 rounded-lg bg-gray-800 text-white shadow hover:bg-gray-700 transition"
+      className="fixed top-4 right-4 z-[60] flex flex-col justify-center items-center gap-1.5 px-5 py-3 rounded-lg 
+                 bg-[#5C3A2E] text-white shadow hover:bg-[#6E4B3F] transition"
       aria-haspopup="dialog"
       aria-expanded={open}
       aria-controls="checklist-drawer"
     >
-      <span className={`block w-6 h-0.5 bg-white transition-transform ${open ? "rotate-45 translate-y-1.5" : ""}`} />
-      <span className={`block w-6 h-0.5 bg-white transition-opacity ${open ? "opacity-0" : ""}`} />
-      <span className={`block w-6 h-0.5 bg-white transition-transform ${open ? "-rotate-45 -translate-y-1.5" : ""}`} />
+      <span
+        className={`block w-6 h-0.5 bg-white transition-transform ${
+          open ? "rotate-45 translate-y-1.5" : ""
+        }`}
+      />
+      <span
+        className={`block w-6 h-0.5 bg-white transition-opacity ${
+          open ? "opacity-0" : ""
+        }`}
+      />
+      <span
+        className={`block w-6 h-0.5 bg-white transition-transform ${
+          open ? "-rotate-45 -translate-y-1.5" : ""
+        }`}
+      />
     </button>
   );
 }
 
-/* ---------- 右スライドドロワー + 外クリック/選択で閉じる ---------- */
+/* ---------- 右スライドドロワー（選択しても閉じない） ---------- */
 export function ChecklistPanel() {
   const { phase, setPhase, open, setOpen } = useChecklist();
-  const heading = useMemo(() => `時期を選択（現在：${PHASE_LABELS[phase]}）`, [phase]);
+  const heading = "時期を選択"; // ← 現在の選択表示をなくす
 
   const onBackdropClick: React.MouseEventHandler<HTMLDivElement> = (e) => {
     if ((e.target as HTMLElement).dataset?.backdrop === "true") {
       setOpen(false);
     }
   };
+
   const onSelect = (key: PhaseKey) => {
     setPhase(key);
-    setOpen(false);
+    // ← 自動で閉じない：setOpen(false) は削除
   };
+
+  // カラーパレット（薄い順）
+  const BG_PANEL = "bg-[#FAF8F6]";     // パネル背景：さらに薄い茶色
+  const BG_ITEM  = "bg-[#F0E4D8]";     // 選択肢：薄い茶色
+  const BG_ACTIVE= "bg-[#E6D6C9]";     // 選択中：少し濃い茶色
+  const TXT_HEAD = "text-[#4D3F36]";   // 見出し＆本文の濃い茶
 
   return (
     <>
@@ -124,37 +144,44 @@ export function ChecklistPanel() {
         id="checklist-drawer"
         role="dialog"
         aria-label={heading}
-        className={`fixed top-0 right-0 h-full w-80 bg-white shadow-xl z-50 transform transition-transform duration-300 ${open ? "translate-x-0" : "translate-x-full"}`}
+        className={`fixed top-0 right-0 h-full w-80 ${BG_PANEL} shadow-xl z-50 transform transition-transform duration-300 ${open ? "translate-x-0" : "translate-x-full"}`}
       >
-        <div className="p-4 border-b border-zinc-200">
-          <h3 className="text-lg font-semibold text-purple-800">{heading}</h3>
-          <p className="text-xs text-zinc-500 mt-1">表示する乳幼児の段階を選択してください。</p>
+        <div className="p-4 border-b border-[#E5D9CE]">
+          <h3 className={`text-lg font-semibold ${TXT_HEAD}`}>{heading}</h3>
+          <p className="text-xs text-[#6B5A4E] mt-1">乳幼児の段階を選択してください。</p>
         </div>
+
         <div className="p-4 overflow-y-auto h-[calc(100%-3.5rem)]">
-          {PHASE_ITEMS.map((item) => (
-            <label
-              key={item.key}
-              className="flex items-start gap-3 rounded-xl border border-zinc-200 p-3 hover:bg-zinc-50 mb-2 cursor-pointer"
-              onClick={() => onSelect(item.key)}
-            >
-              <input
-                type="radio"
-                name="weaning-phase"
-                value={item.key}
-                checked={phase === item.key}
-                onChange={() => onSelect(item.key)}
-                className="mt-1"
-              />
-              <div>
-                <div className="font-medium">
-                  {item.label}
-                  <span className="ml-2 text-xs text-zinc-500">{item.sub}</span>
+          {PHASE_ITEMS.map((item) => {
+            const active = phase === item.key;
+            return (
+              <label
+                key={item.key}
+                className={`flex items-start gap-3 rounded-xl p-3 mb-2 cursor-pointer border
+                            ${active ? `${BG_ACTIVE} border-[#D4C3B6]` : `${BG_ITEM} border-[#E5D9CE]`}
+                            hover:brightness-95`}
+                onClick={() => onSelect(item.key)}
+              >
+                <input
+                  type="radio"
+                  name="weaning-phase"
+                  value={item.key}
+                  checked={active}
+                  onChange={() => onSelect(item.key)}
+                  className="mt-1 accent-[#5C3A2E]"
+                />
+                <div>
+                  <div className={`font-medium ${TXT_HEAD}`}>
+                    {item.label}
+                    <span className="ml-2 text-xs text-[#6B5A4E]">{item.sub}</span>
+                  </div>
                 </div>
-              </div>
-            </label>
-          ))}
+              </label>
+            );
+          })}
         </div>
       </aside>
     </>
   );
 }
+

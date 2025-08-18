@@ -31,17 +31,21 @@ export default function BottomDrawer({
       role="dialog"
       aria-label="説明"
     >
-      <div className="mx-auto max-w-3xl rounded-t-2xl border border-zinc-200 bg-white shadow-2xl p-4">
+      {/* ▼ 背景色をうすい彩度低めのピンクに変更 */}
+      <div className="mx-auto max-w-3xl rounded-t-2xl border border-zinc-200 bg-[#F8E8E8] shadow-2xl p-4">
         <div className="flex items-center justify-between mb-2">
-          <div className="text-sm text-zinc-500">
-            選択テキスト：<span className="font-medium text-zinc-800">{openText}</span>
+          {/* ▼ ラベルを“食材名”に変更 */}
+          <div className="text-sm text-zinc-700">
+            食材名：<span className="font-medium text-zinc-900">{openText}</span>
           </div>
           <button
             type="button"
-            className="px-3 py-1 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-700"
             onClick={onClose}
+            className="flex items-center justify-center w-10 h-10 rounded-lg
+                       bg-[#5C3A2E] hover:bg-[#6E4B3F] text-white text-2xl font-bold transition"
+            aria-label="閉じる"
           >
-            閉じる
+            ×
           </button>
         </div>
 
