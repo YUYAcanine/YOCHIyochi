@@ -85,17 +85,31 @@ export function ChecklistButton() {
     <button
       type="button"
       onClick={() => setOpen(!open)}
-      className="fixed top-4 right-4 z-50 flex flex-col justify-center items-center gap-1.5 px-5 py-3 rounded-lg bg-gray-800 text-white shadow hover:bg-gray-700 transition"
+      className="fixed top-4 right-4 z-50 flex flex-col justify-center items-center gap-1.5 px-5 py-3 rounded-lg 
+                 bg-[#5C3A2E] text-white shadow hover:bg-[#6E4B3F] transition"
       aria-haspopup="dialog"
       aria-expanded={open}
       aria-controls="checklist-drawer"
     >
-      <span className={`block w-6 h-0.5 bg-white transition-transform ${open ? "rotate-45 translate-y-1.5" : ""}`} />
-      <span className={`block w-6 h-0.5 bg-white transition-opacity ${open ? "opacity-0" : ""}`} />
-      <span className={`block w-6 h-0.5 bg-white transition-transform ${open ? "-rotate-45 -translate-y-1.5" : ""}`} />
+      <span
+        className={`block w-6 h-0.5 bg-white transition-transform ${
+          open ? "rotate-45 translate-y-1.5" : ""
+        }`}
+      />
+      <span
+        className={`block w-6 h-0.5 bg-white transition-opacity ${
+          open ? "opacity-0" : ""
+        }`}
+      />
+      <span
+        className={`block w-6 h-0.5 bg-white transition-transform ${
+          open ? "-rotate-45 -translate-y-1.5" : ""
+        }`}
+      />
     </button>
   );
 }
+
 
 /* ---------- 右スライドドロワー + 外クリック/選択で閉じる ---------- */
 export function ChecklistPanel() {

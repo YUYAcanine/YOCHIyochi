@@ -5,7 +5,6 @@ import { useState, useMemo, ChangeEvent } from "react";
 import Image from "next/image";
 import { Camera, Image as ImageIcon } from "lucide-react";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
-import Button from "@/components/Button"; // ← これはリンク専用として使う
 import { ChecklistButton, ChecklistPanel, useChecklist } from "@/components/checklist";
 import OcrImage from "@/components/OcrImage";
 import BottomDrawer from "@/components/BottomDrawer";
@@ -14,25 +13,25 @@ import { useOCR } from "@/hooks/useOCR";
 import { canon } from "@/lib/textNormalize";
 import type { PhaseKey } from "@/types/food";
 import imageCompression from "browser-image-compression";
+import Ribbon from "@/components/Ribbon";
 
 type Box = { description: string };
 type Variant = "forbidden" | "ok" | "none";
 
-// ボタン風クラス（既存Buttonのvariantに近い見た目）
+// ====== 色とボタン ======
 const BTN_BASE =
-  "inline-flex items-center justify-center rounded-lg px-6 py-3 font-semibold shadow transition focus:outline-none focus:ring-2 focus:ring-offset-2";
-const BTN_GREEN = `${BTN_BASE} bg-green-600 hover:bg-green-500 text-white focus:ring-green-400`;
-const BTN_GRAY = `${BTN_BASE} bg-gray-300 hover:bg-gray-200 text-gray-900 focus:ring-gray-400`;
+  "inline-flex items-center justify-center rounded-xl px-6 py-3 font-semibold transition focus:outline-none focus:ring-2 focus:ring-offset-2";
+
+const BTN_SECONDARY = `${BTN_BASE} bg-[#CBB9AB] hover:bg-[#B8A598] text-[#3A2C25] border border-[#BCAAA0] focus:ring-[#A88877] focus:ring-offset-[#FAF8F6]`;
+const BTN_WIDE_SECONDARY = `${BTN_SECONDARY} w-full max-w-[480px] py-4`;
 
 export default function Page2() {
   const { phase } = useChecklist();
 
-  // メニュー式アップロード
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [imgSrc, setImgSrc] = useState<string | null>(null);
 
-  // OCR系
   const [selectedText, setSelectedText] = useState("");
   const menuMap = useMenuMap("/yochiyochi.csv");
   const { boxes, loading, scale, onImgLoad } = useOCR(imgSrc);
@@ -45,7 +44,7 @@ export default function Page2() {
     try {
       compressed = await imageCompression(picked, {
         maxSizeMB: 1,
-        maxWidthOrHeight: 1024,
+        maxWidthOrHeight: 1280,
         useWebWorker: true,
       });
     } catch {
@@ -62,8 +61,8 @@ export default function Page2() {
       });
 
     const dataUrl = await toDataURL(compressed);
-    setPreview(dataUrl);   // プレビュー表示用
-    setImgSrc(dataUrl);    // OCR入力
+    setPreview(dataUrl);
+    setImgSrc(dataUrl); // これでOCR画面へ切替
   };
 
   const classify = (raw?: string): { variant: Variant; text: string } => {
@@ -91,92 +90,117 @@ export default function Page2() {
     setSelectedText("");
   };
 
-  // アップロード画面
+  // =============== Upload View（アップロード前） ===============
   const UploadView = (
-    <main className="flex flex-col min-h-screen items-center justify-start bg-green-50 pt-10">
+    <div className="flex flex-col flex-grow items-center justify-center">
       {!preview && (
-        <div className="flex space-x-4 mt-6 justify-center">
-          <label
-            htmlFor="camera-upload"
-            className="w-24 h-24 bg-white/70 flex items-center justify-center rounded cursor-pointer shadow"
-          >
-            <Camera className="w-8 h-8" />
-            <input
-              id="camera-upload"
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={handleImageChange}
-              className="hidden"
-            />
-          </label>
+        <div className="flex flex-col gap-12 items-center justify-center flex-grow mt-8">
+          {/* カメラ */}
+          <div className="flex flex-col items-center gap-3">
+            <p className="text-[#6B5A4E] text-lg font-bold">カメラで撮る</p>
+            <label
+              htmlFor="camera-upload"
+              className="w-36 h-36 bg-[#E8DCD0] border border-[#D3C5B9] flex items-center justify-center rounded-xl cursor-pointer"
+            >
+              <Camera className="w-12 h-12" />
+              <input
+                id="camera-upload"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleImageChange}
+                className="hidden"
+              />
+            </label>
+          </div>
 
-          <label
-            htmlFor="file-upload"
-            className="w-24 h-24 bg-white/70 flex items-center justify-center rounded cursor-pointer shadow"
-          >
-            <ImageIcon className="w-8 h-8" />
-            <input
-              id="file-upload"
-              type="file"
-              accept="image/*"
-              onChange={handleImageChange}
-              className="hidden"
-            />
-          </label>
+          {/* ファイル */}
+          <div className="flex flex-col items-center gap-3">
+            <p className="text-[#6B5A4E] text-lg font-bold">アルバムから選ぶ</p>
+            <label
+              htmlFor="file-upload"
+              className="w-36 h-36 bg-[#E8DCD0] border border-[#D3C5B9] flex items-center justify-center rounded-xl cursor-pointer"
+            >
+              <ImageIcon className="w-12 h-12" />
+              <input
+                id="file-upload"
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                className="hidden"
+              />
+            </label>
+          </div>
         </div>
       )}
 
-      {preview && (
-        <div className="mt-6 px-4">
-          <Image src={preview} alt="preview" width={192} height={192} className="rounded shadow" />
+      {/* 参考：アップロード前にプレビューを出すならここ。大きめにしてある */}
+      {preview && !imgSrc && (
+        <div className="px-4 flex justify-center">
+          <Image
+            src={preview}
+            alt="preview"
+            width={900}
+            height={900}
+            className="rounded-xl border border-[#D3C5B9] max-w-[92vw] max-h-[78vh] w-auto h-auto"
+          />
         </div>
       )}
-
-      <div className="mt-auto mb-10">
-        {/* ナビゲーションは既存の Button（href 必須） */}
-        <Button href="/" variant="gray">ホームに戻る</Button>
-      </div>
-    </main>
+    </div>
   );
 
-  // OCR画面
+  // =============== OCR View（アップロード後） ===============
+  // 画面高 - リボン高(6rem) をほぼフルに使い、上下パディングを最小限に。
   const OcrView = (
-    <main className="min-h-screen bg-purple-50 flex flex-col items-center justify-center gap-8 p-6 relative">
-      <ChecklistButton />
-      <ChecklistPanel />
+    <div className="relative flex flex-col flex-grow h-[calc(100svh-6rem)] px-3">
+      <div className="flex-none py-2">
+        <ChecklistButton />
+        <ChecklistPanel />
+      </div>
 
-      {imgSrc ? (
-        <TransformWrapper doubleClick={{ disabled: true }}>
-          <TransformComponent wrapperClass="w-full h-full">
-            <OcrImage
-              imgSrc={imgSrc}
-              boxes={boxes}
-              scale={scale}
-              phase={phase as PhaseKey}
-              onImgLoad={onImgLoad}
-              filter={visibleFilter}
-              onPick={setSelectedText}
-              getBoxVariant={getBoxVariant}
-            />
-          </TransformComponent>
-        </TransformWrapper>
-      ) : (
-        <p className="text-zinc-700">画像がありません。画像を選択してください。</p>
-      )}
+      {/* プレビュー（OCR表示）領域：めいっぱい広げる */}
+      <div className="relative flex-grow">
+        <div className="absolute inset-0">
+          <TransformWrapper doubleClick={{ disabled: true }}>
+            <TransformComponent wrapperClass="w-full h-full">
+              <div className="w-full h-full">
+                <OcrImage
+                  imgSrc={imgSrc!}
+                  boxes={boxes}
+                  scale={scale}
+                  phase={phase as PhaseKey}
+                  onImgLoad={onImgLoad}
+                  filter={visibleFilter}
+                  onPick={setSelectedText}
+                  getBoxVariant={getBoxVariant}
+                />
+              </div>
+            </TransformComponent>
+          </TransformWrapper>
+        </div>
 
-      <div className="flex gap-3">
-        {/* ← ここは onClick 必要なのでネイティブ button を使用 */}
-        <button type="button" onClick={resetImage} className={BTN_GREEN}>
-          写真を変える
-        </button>
-
-        {/* ← ここはリンク遷移なので既存 Button */}
-        <Button href="/" variant="gray">ホームに戻る</Button>
+        {/* ▼ プレビュー直下に小さめのボタン配置 */}
+        <div className="absolute left-1/2 -translate-x-1/2 bottom-4 z-40 flex justify-center pointer-events-none">
+          <a
+            href="/page2"
+            onClick={(e) => {
+              e.preventDefault();
+              resetImage();
+            }}
+            className="inline-flex items-center justify-center rounded-lg 
+                       px-6 py-2 text-sm font-medium 
+                       bg-[#CBB9AB] hover:bg-[#B8A598] text-[#3A2C25] 
+                       border border-[#BCAAA0] 
+                       shadow-md backdrop-blur-sm bg-white/85 
+                       pointer-events-auto"
+          >
+            別の画像にする
+          </a>
+        </div>
       </div>
 
       {loading && (
-        <p className="absolute top-3 right-3 z-20 bg-white/90 px-3 py-1 rounded">
+        <p className="absolute top-2 right-3 z-50 bg-white/90 px-3 py-1 rounded-md text-[#6B5A4E]">
           OCR処理中...
         </p>
       )}
@@ -188,8 +212,20 @@ export default function Page2() {
         variant={selected.variant}
         onClose={() => setSelectedText("")}
       />
-    </main>
+    </div>
   );
 
-  return imgSrc ? OcrView : UploadView;
+  return (
+    <main className="min-h-screen bg-[#FAF8F6] text-[#4D3F36] relative flex flex-col">
+      {/* 固定リボン（常に表示） */}
+      <Ribbon logoSrc="/yoyochi.jpg" alt="よちヨチ ロゴ" bgClass="bg-[#F0E4D8]" heightClass="h-24" />
+
+      {/* コンテンツはリボン高さ分だけ下げる */}
+      <div className="flex-grow pt-24">
+        {imgSrc ? OcrView : UploadView}
+      </div>
+    </main>
+  );
 }
+
+
