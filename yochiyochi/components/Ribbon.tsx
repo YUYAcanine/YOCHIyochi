@@ -19,7 +19,7 @@ type Props = {
   heightClass?: string;
   /** 背景色クラス（既定: bg-[#F0E4D8]） */
   bgClass?: string;
-  /** 外側ラッパの追加クラス */
+  /** 外側ラッパの追加クラス（アニメ用に使う） */
   containerClassName?: string;
   /** ロゴの幅/高さ（Next/Image のレイアウト用） */
   logoWidth?: number;
@@ -59,3 +59,4 @@ export default function Ribbon({
     </div>
   );
 }
+

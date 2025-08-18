@@ -18,7 +18,7 @@ import Ribbon from "@/components/Ribbon";
 type Box = { description: string };
 type Variant = "forbidden" | "ok" | "none";
 
-// ====== 色とボタン ======
+// ====== 色とボタン（必要なら使ってください） ======
 const BTN_BASE =
   "inline-flex items-center justify-center rounded-xl px-6 py-3 font-semibold transition focus:outline-none focus:ring-2 focus:ring-offset-2";
 
@@ -62,7 +62,7 @@ export default function Page2() {
 
     const dataUrl = await toDataURL(compressed);
     setPreview(dataUrl);
-    setImgSrc(dataUrl); // これでOCR画面へ切替
+    setImgSrc(dataUrl); // OCR表示へ切替
   };
 
   const classify = (raw?: string): { variant: Variant; text: string } => {
@@ -89,6 +89,9 @@ export default function Page2() {
     setImgSrc(null);
     setSelectedText("");
   };
+
+  // Drawer 開いているか（= テキスト選択あり）
+  const drawerOpen = Boolean(selectedText);
 
   // =============== Upload View（アップロード前） ===============
   const UploadView = (
@@ -134,7 +137,7 @@ export default function Page2() {
         </div>
       )}
 
-      {/* 参考：アップロード前にプレビューを出すならここ。大きめにしてある */}
+      {/* アップロード前プレビュー（任意） */}
       {preview && !imgSrc && (
         <div className="px-4 flex justify-center">
           <Image
@@ -150,16 +153,20 @@ export default function Page2() {
   );
 
   // =============== OCR View（アップロード後） ===============
-  // 画面高 - リボン高(6rem) をほぼフルに使い、上下パディングを最小限に。
+  // 画面高 - リボン高 をほぼフルに使う（リボン高はCSS変数で同期）
   const OcrView = (
-    <div className="relative flex flex-col flex-grow h-[calc(100svh-6rem)] px-3">
+    <div className="relative flex flex-col flex-grow h-[calc(100svh-var(--ribbon-h))] px-3">
       <div className="flex-none py-2">
         <ChecklistButton />
         <ChecklistPanel />
       </div>
 
-      {/* プレビュー（OCR表示）領域：めいっぱい広げる */}
-      <div className="relative flex-grow">
+      {/* プレビュー（OCR表示）領域：★BottomDrawer表示中はシフト量だけ上にスライド */}
+      <div
+        className={`relative flex-grow transition-transform duration-500 will-change-transform ${
+          drawerOpen ? "-translate-y-[var(--ribbon-shift)]" : "translate-y-0"
+        }`}
+      >
         <div className="absolute inset-0">
           <TransformWrapper doubleClick={{ disabled: true }}>
             <TransformComponent wrapperClass="w-full h-full">
@@ -204,7 +211,44 @@ export default function Page2() {
           OCR処理中...
         </p>
       )}
+    </div>
+  );
 
+  // ====== リボンの寸法をCSS変数で一元管理 ======
+  // 見た目の高さ（RibbonのheightClassと一致）
+  const RIBBON_HEIGHT = "6rem" as const;    // h-24
+  // 完全に隠すためのシフト量（影・余白込みで多めに）
+  const RIBBON_SHIFT = "10rem" as const;
+
+  return (
+    <main
+      className="min-h-screen bg-[#FAF8F6] text-[#4D3F36] relative flex flex-col"
+      style={
+        {
+          ["--ribbon-h" as any]: RIBBON_HEIGHT,
+          ["--ribbon-shift" as any]: RIBBON_SHIFT,
+        } as React.CSSProperties
+      }
+    >
+      {/* 固定リボン（常に表示）。BottomDrawer表示中はリボンを上に隠す */}
+      <Ribbon
+        href="/"
+        logoSrc="/yoyochi.jpg"
+        alt="よちヨチ ロゴ"
+        heightClass="h-24"              // = 6rem
+        bgClass="bg-[#F0E4D8]"
+        containerClassName={`transition-transform duration-500 will-change-transform ${
+          drawerOpen ? "-translate-y-[var(--ribbon-shift)]" : "translate-y-0"
+        }`}
+        logoClassName="h-20 w-auto object-contain"
+      />
+
+      {/* コンテンツはリボン見かけの高さ分だけ下げる */}
+      <div className="flex-grow pt-24">
+        {imgSrc ? OcrView : UploadView}
+      </div>
+
+      {/* ★ transform の外に置く：パネルは元の最下部固定のまま */}
       <BottomDrawer
         openText={selectedText}
         description={selected.text}
@@ -212,20 +256,10 @@ export default function Page2() {
         variant={selected.variant}
         onClose={() => setSelectedText("")}
       />
-    </div>
-  );
-
-  return (
-    <main className="min-h-screen bg-[#FAF8F6] text-[#4D3F36] relative flex flex-col">
-      {/* 固定リボン（常に表示） */}
-      <Ribbon logoSrc="/yoyochi.jpg" alt="よちヨチ ロゴ" bgClass="bg-[#F0E4D8]" heightClass="h-24" />
-
-      {/* コンテンツはリボン高さ分だけ下げる */}
-      <div className="flex-grow pt-24">
-        {imgSrc ? OcrView : UploadView}
-      </div>
     </main>
   );
 }
+
+
 
 
