@@ -1,172 +1,160 @@
+// components/checklist.tsx
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { X, ListFilter, Menu, Check } from "lucide-react";
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 
-/* ===== 離乳期フェーズ一覧 ===== */
-export const PHASES = [
-  "離乳初期",
-  "離乳中期",
-  "離乳後期",
-  "離乳完了期",
-  "幼児期",
-] as const;
-export type Phase = typeof PHASES[number];
+/* ---------- 型と定数 ---------- */
+export type PhaseKey = "phase1" | "phase2" | "phase3" | "phase4" | "phase5";
 
-/* ===== Context 型定義 ===== */
-type ChecklistContextType = {
-  open: boolean;
-  setOpen: (v: boolean) => void;
-  phase: Phase | null;
-  setPhase: (p: Phase | null) => void;
+export const PHASE_LABELS: Record<PhaseKey, string> = {
+  phase1: "離乳初期",
+  phase2: "離乳中期",
+  phase3: "離乳後期",
+  phase4: "完了期",
+  phase5: "幼児期",
 };
 
-/* ===== Context作成 ===== */
-const ChecklistContext = createContext<ChecklistContextType | null>(null);
+const PHASE_ITEMS: { key: PhaseKey; label: string; sub?: string }[] = [
+  { key: "phase1", label: "離乳初期", sub: "5〜6か月目安" },
+  { key: "phase2", label: "離乳中期", sub: "7〜8か月目安" },
+  { key: "phase3", label: "離乳後期", sub: "9〜11か月目安" },
+  { key: "phase4", label: "完了期", sub: "12〜18か月目安" },
+  { key: "phase5", label: "幼児期", sub: "18か月以降目安" },
+];
 
-/* ===== Provider ===== */
+/* ---------- Storage helper ---------- */
+const STORAGE_KEY = "checklistPhase";
+function safeGetPhase(): PhaseKey {
+  if (typeof window === "undefined") return "phase1";
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (raw === "phase2" || raw === "phase3" || raw === "phase4" || raw === "phase5") return raw as PhaseKey;
+  return "phase1";
+}
+function safeSetPhase(p: PhaseKey) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(STORAGE_KEY, p);
+}
+
+/* ---------- Context ---------- */
+type ChecklistContextType = {
+  phase: PhaseKey;
+  setPhase: (p: PhaseKey) => void;
+  open: boolean;
+  setOpen: (o: boolean) => void;
+};
+
+const ChecklistContext = createContext<ChecklistContextType | undefined>(undefined);
+
+/* ---------- Provider ---------- */
 export function ChecklistProvider({ children }: { children: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
-  const [phase, setPhase] = useState<Phase | null>(null);
-  const value = useMemo(() => ({ open, setOpen, phase, setPhase }), [open, phase]);
+  const [phase, setPhaseState] = useState<PhaseKey>("phase1"); // SSR初期値
+  const [open, setOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    setPhaseState(safeGetPhase());
+  }, []);
+
+  const setPhase = (p: PhaseKey) => {
+    setPhaseState(p);
+    safeSetPhase(p);
+  };
+
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY) setPhaseState(safeGetPhase());
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  const value = useMemo(() => ({ phase, setPhase, open, setOpen }), [phase, open]);
   return <ChecklistContext.Provider value={value}>{children}</ChecklistContext.Provider>;
 }
 
-/* ===== Hook ===== */
+/* ---------- Hook ---------- */
 export function useChecklist() {
   const ctx = useContext(ChecklistContext);
-  if (!ctx) throw new Error("useChecklist must be used within ChecklistProvider");
+  if (!ctx) throw new Error("useChecklist must be used inside ChecklistProvider");
   return ctx;
 }
 
-/* ===== 右上ボタン ===== */
+/* ---------- 右上固定ボタン（濃いグレー＋ハンバーガー） ---------- */
 export function ChecklistButton() {
-  const { open, setOpen, phase } = useChecklist();
-  const toggle = useCallback(() => setOpen(!open), [open, setOpen]);
+  const { open, setOpen } = useChecklist();
   return (
     <button
-      aria-label={open ? "Close checklist" : "Open checklist"}
-      onClick={toggle}
-      className="fixed top-3 right-3 z-50 rounded-2xl border border-neutral-200 bg-white/80 backdrop-blur px-3 py-2 shadow-sm hover:shadow transition flex items-center gap-2"
+      type="button"
+      onClick={() => setOpen(!open)}
+      className="fixed top-4 right-4 z-50 flex flex-col justify-center items-center gap-1.5 px-5 py-3 rounded-lg bg-gray-800 text-white shadow hover:bg-gray-700 transition"
+      aria-haspopup="dialog"
+      aria-expanded={open}
+      aria-controls="checklist-drawer"
     >
-      <Menu className="h-5 w-5" />
-      <span className="hidden sm:inline text-sm font-medium">{phase ?? "チェック"}</span>
+      <span className={`block w-6 h-0.5 bg-white transition-transform ${open ? "rotate-45 translate-y-1.5" : ""}`} />
+      <span className={`block w-6 h-0.5 bg-white transition-opacity ${open ? "opacity-0" : ""}`} />
+      <span className={`block w-6 h-0.5 bg-white transition-transform ${open ? "-rotate-45 -translate-y-1.5" : ""}`} />
     </button>
   );
 }
 
-/* ===== チェックリストパネル ===== */
+/* ---------- 右スライドドロワー + 外クリック/選択で閉じる ---------- */
 export function ChecklistPanel() {
-  const { open, setOpen, phase, setPhase } = useChecklist();
-  const [query, setQuery] = useState("");
-  const panelRef = useRef<HTMLDivElement | null>(null);
+  const { phase, setPhase, open, setOpen } = useChecklist();
+  const heading = useMemo(() => `時期を選択（現在：${PHASE_LABELS[phase]}）`, [phase]);
 
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (!open) return;
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+  const onBackdropClick: React.MouseEventHandler<HTMLDivElement> = (e) => {
+    if ((e.target as HTMLElement).dataset?.backdrop === "true") {
+      setOpen(false);
     }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open, setOpen]);
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [setOpen]);
-
-  const filtered = PHASES.filter((p) => p.toLowerCase().includes(query.trim().toLowerCase()));
+  };
+  const onSelect = (key: PhaseKey) => {
+    setPhase(key);
+    setOpen(false);
+  };
 
   return (
     <>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            key="overlay"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="fixed inset-0 z-40 bg-black/20"
-            onClick={() => setOpen(false)}
-          />
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {open && (
-          <motion.aside
-            key="checklist-panel"
-            ref={panelRef}
-            initial={{ opacity: 0, x: 24, y: -24, scale: 0.95 }}
-            animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
-            exit={{ opacity: 0, x: 24, y: -24, scale: 0.95 }}
-            transition={{ type: "spring", stiffness: 420, damping: 32 }}
-            className="fixed top-14 right-3 z-50 w-[min(92vw,22rem)] origin-top-right"
-          >
-            <div className="rounded-2xl border border-neutral-200 bg-white shadow-2xl overflow-hidden">
-              <div className="flex items-start justify-between p-4 sm:p-5">
-                <h2 className="text-lg sm:text-xl font-semibold tracking-tight">チェックリスト</h2>
-                <button
-                  aria-label="Close"
-                  onClick={() => setOpen(false)}
-                  className="rounded-xl p-2 hover:bg-neutral-100 active:scale-95 transition"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              <div className="px-4 sm:px-5 pb-3">
-                <div className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2">
-                  <ListFilter className="h-4 w-4" />
-                  <input
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="フェーズ名でフィルタ"
-                    className="w-full outline-none text-sm"
-                  />
-                  {query && (
-                    <button
-                      onClick={() => setQuery("")}
-                      className="text-xs text-neutral-500 hover:underline"
-                    >
-                      クリア
-                    </button>
-                  )}
+      <div
+        data-backdrop="true"
+        onClick={onBackdropClick}
+        className={`fixed inset-0 z-40 bg-black/30 transition-opacity duration-200 ${open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
+        aria-hidden={!open}
+      />
+      <aside
+        id="checklist-drawer"
+        role="dialog"
+        aria-label={heading}
+        className={`fixed top-0 right-0 h-full w-80 bg-white shadow-xl z-50 transform transition-transform duration-300 ${open ? "translate-x-0" : "translate-x-full"}`}
+      >
+        <div className="p-4 border-b border-zinc-200">
+          <h3 className="text-lg font-semibold text-purple-800">{heading}</h3>
+          <p className="text-xs text-zinc-500 mt-1">表示する乳幼児の段階を選択してください。</p>
+        </div>
+        <div className="p-4 overflow-y-auto h-[calc(100%-3.5rem)]">
+          {PHASE_ITEMS.map((item) => (
+            <label
+              key={item.key}
+              className="flex items-start gap-3 rounded-xl border border-zinc-200 p-3 hover:bg-zinc-50 mb-2 cursor-pointer"
+              onClick={() => onSelect(item.key)}
+            >
+              <input
+                type="radio"
+                name="weaning-phase"
+                value={item.key}
+                checked={phase === item.key}
+                onChange={() => onSelect(item.key)}
+                className="mt-1"
+              />
+              <div>
+                <div className="font-medium">
+                  {item.label}
+                  <span className="ml-2 text-xs text-zinc-500">{item.sub}</span>
                 </div>
               </div>
-
-              <ul className="max-h-[60vh] overflow-auto px-2 sm:px-3 pb-3">
-                {filtered.length === 0 && (
-                  <li className="p-4 text-sm text-neutral-500">該当なし</li>
-                )}
-                {filtered.map((p) => (
-                  <li key={p} className="p-1">
-                    <button
-                      onClick={() => {
-                        setPhase(p);
-                        setOpen(false);
-                      }}
-                      className="w-full text-left"
-                    >
-                      <div className="group w-full flex items-center justify-between gap-3 rounded-xl border border-transparent hover:border-neutral-200 bg-white hover:bg-neutral-50 px-3 py-3 transition shadow-sm">
-                        <span className="truncate font-medium">{p}</span>
-                        {phase === p && <Check className="h-4 w-4" />}
-                      </div>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </motion.aside>
-        )}
-      </AnimatePresence>
+            </label>
+          ))}
+        </div>
+      </aside>
     </>
   );
 }
