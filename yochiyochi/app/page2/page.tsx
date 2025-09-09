@@ -219,7 +219,9 @@ export default function Page2() {
       className="min-h-screen bg-[#FAF8F6] text-[#4D3F36] relative flex flex-col"
       style={
         {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ["--ribbon-h" as any]: RIBBON_HEIGHT,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ["--ribbon-shift" as any]: RIBBON_SHIFT,
         } as React.CSSProperties
       }
