@@ -15,6 +15,7 @@ import type { PhaseKey } from "@/types/food";
 import imageCompression from "browser-image-compression";
 import Ribbon from "@/components/Ribbon";
 import LoadingSpinner from "@/components/LoadingSpinner";
+import * as gtag from "@/lib/gtag"; // ★ GA イベント用を追加
 
 type Box = { description: string };
 type Variant = "forbidden" | "ok" | "none";
@@ -93,6 +94,19 @@ export default function Page2() {
 
   // Drawer 開いているか（= テキスト選択あり）
   const drawerOpen = Boolean(selectedText);
+
+  // ★ GA連携用の onPick ハンドラ
+  const handlePick = (text: string) => {
+  setSelectedText(text);
+  if (text) {
+    gtag.event({
+      action: "ocr_text_selected",
+      category: "engagement",
+      label: text, // 選択されたテキストをそのまま記録
+    });
+  }
+};
+
 
   // =============== Upload View（アップロード前） ===============
   const UploadView = (
@@ -180,7 +194,7 @@ export default function Page2() {
                   phase={phase as PhaseKey}
                   onImgLoad={onImgLoad}
                   filter={visibleFilter}
-                  onPick={setSelectedText}
+                  onPick={handlePick} // ★ ここで GA も発火
                   getBoxVariant={getBoxVariant}
                 />
               </div>

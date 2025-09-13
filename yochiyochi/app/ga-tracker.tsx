@@ -10,9 +10,13 @@ function GaInnerTracker() {
 
   useEffect(() => {
     if (!GA_ID) return;
-    const url = pathname + searchParams.toString();
-    // @ts-expect-error gtag is provided by GA script
-    window.gtag("config", GA_ID, { page_path: url });
+
+    const query = searchParams.toString();
+    const url = query ? `${pathname}?${query}` : pathname;
+
+    if (typeof window !== "undefined" && (window as any).gtag) {
+      (window as any).gtag("config", GA_ID, { page_path: url });
+    }
   }, [pathname, searchParams, GA_ID]);
 
   return null;
@@ -25,3 +29,4 @@ export default function GaTracker() {
     </Suspense>
   );
 }
+
