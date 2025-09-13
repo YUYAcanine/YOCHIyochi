@@ -11,7 +11,7 @@ export default function GaTracker() {
   useEffect(() => {
     if (!GA_ID) return;
     const url = pathname + searchParams.toString();
-    // @ts-expect-error
+    // @ts-expect-error gtag is provided by Google Analytics script
     window.gtag("config", GA_ID, { page_path: url });
   }, [pathname, searchParams, GA_ID]);
 
