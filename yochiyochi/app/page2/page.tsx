@@ -20,7 +20,7 @@ import * as gtag from "@/lib/gtag"; // ★ GA イベント用を追加
 type Box = { description: string };
 type Variant = "forbidden" | "ok" | "none";
 
-// ====== 色とボタン（必要なら使ってください） ======
+// ====== 色とボタン ======
 const BTN_BASE =
   "inline-flex items-center justify-center rounded-xl px-6 py-3 font-semibold transition focus:outline-none focus:ring-2 focus:ring-offset-2";
 
@@ -38,9 +38,17 @@ export default function Page2() {
   const menuMap = useMenuMap("/yochiyochi.csv");
   const { boxes, loading, scale, onImgLoad } = useOCR(imgSrc);
 
-  const handleImageChange = async (e: ChangeEvent<HTMLInputElement>) => {
+  // ===== 画像選択（ファイル or カメラ） =====
+  const handleImageChange = async (e: ChangeEvent<HTMLInputElement>, source: "camera" | "file") => {
     const picked = e.target.files?.[0];
     if (!picked) return;
+
+    // ★ GAイベント送信
+    gtag.event({
+      action: source === "camera" ? "camera_upload_selected" : "file_upload_selected",
+      category: "engagement",
+      label: picked.name,
+    });
 
     let compressed = picked;
     try {
@@ -95,20 +103,19 @@ export default function Page2() {
   // Drawer 開いているか（= テキスト選択あり）
   const drawerOpen = Boolean(selectedText);
 
-  // ★ GA連携用の onPick ハンドラ
+  // ★ OCRテキスト選択時にGA送信
   const handlePick = (text: string) => {
-  setSelectedText(text);
-  if (text) {
-    gtag.event({
-      action: "ocr_text_selected",
-      category: "engagement",
-      label: text, // 選択されたテキストをそのまま記録
-    });
-  }
-};
+    setSelectedText(text);
+    if (text) {
+      gtag.event({
+        action: "ocr_text_selected",
+        category: "engagement",
+        label: text,
+      });
+    }
+  };
 
-
-  // =============== Upload View（アップロード前） ===============
+  // =============== Upload View ===============
   const UploadView = (
     <div className="flex flex-col flex-grow items-center justify-center">
       {!preview && (
@@ -126,7 +133,7 @@ export default function Page2() {
                 type="file"
                 accept="image/*"
                 capture="environment"
-                onChange={handleImageChange}
+                onChange={(e) => handleImageChange(e, "camera")} // ★ カメラ選択
                 className="hidden"
               />
             </label>
@@ -144,7 +151,7 @@ export default function Page2() {
                 id="file-upload"
                 type="file"
                 accept="image/*"
-                onChange={handleImageChange}
+                onChange={(e) => handleImageChange(e, "file")} // ★ ファイル選択
                 className="hidden"
               />
             </label>
@@ -152,7 +159,7 @@ export default function Page2() {
         </div>
       )}
 
-      {/* アップロード前プレビュー（任意） */}
+      {/* アップロード前プレビュー */}
       {preview && !imgSrc && (
         <div className="px-4 flex justify-center">
           <Image
@@ -167,7 +174,7 @@ export default function Page2() {
     </div>
   );
 
-  // =============== OCR View（アップロード後） ===============
+  // =============== OCR View ===============
   const OcrView = (
     <div className="relative flex flex-col flex-grow h-[calc(100svh-var(--ribbon-h))] px-3">
       <div className="flex-none py-2">
@@ -175,7 +182,6 @@ export default function Page2() {
         <ChecklistPanel />
       </div>
 
-      {/* プレビュー（OCR表示）領域：★BottomDrawer表示中はシフト量だけ上にスライド */}
       <div
         className={`relative flex-grow transition-transform duration-500 will-change-transform ${
           drawerOpen ? "-translate-y-[var(--ribbon-shift)]" : "translate-y-0"
@@ -183,7 +189,6 @@ export default function Page2() {
         aria-busy={loading}
       >
         <div className="absolute inset-0">
-          {/* 読み込み中はパン・ズームを無効化 */}
           <TransformWrapper doubleClick={{ disabled: true }} disabled={loading}>
             <TransformComponent wrapperClass="w-full h-full">
               <div className="w-full h-full">
@@ -194,7 +199,7 @@ export default function Page2() {
                   phase={phase as PhaseKey}
                   onImgLoad={onImgLoad}
                   filter={visibleFilter}
-                  onPick={handlePick} // ★ ここで GA も発火
+                  onPick={handlePick} // ★ OCRテキスト選択イベント
                   getBoxVariant={getBoxVariant}
                 />
               </div>
@@ -224,8 +229,7 @@ export default function Page2() {
     </div>
   );
 
-  // ====== リボンの寸法をCSS変数で一元管理 ======
-  const RIBBON_HEIGHT = "6rem" as const; // h-24
+  const RIBBON_HEIGHT = "6rem" as const;
   const RIBBON_SHIFT = "7rem" as const;
 
   return (
@@ -233,9 +237,7 @@ export default function Page2() {
       className="min-h-screen bg-[#FAF8F6] text-[#4D3F36] relative flex flex-col"
       style={
         {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ["--ribbon-h" as any]: RIBBON_HEIGHT,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ["--ribbon-shift" as any]: RIBBON_SHIFT,
         } as React.CSSProperties
       }
@@ -252,9 +254,7 @@ export default function Page2() {
         logoClassName="h-20 w-auto object-contain"
       />
 
-      <div className="flex-grow pt-24">
-        {imgSrc ? OcrView : UploadView}
-      </div>
+      <div className="flex-grow pt-24">{imgSrc ? OcrView : UploadView}</div>
 
       <BottomDrawer
         openText={selectedText}
@@ -264,8 +264,8 @@ export default function Page2() {
         onClose={() => setSelectedText("")}
       />
 
-      {/* ★ OCR処理中にスピナーを表示 */}
       {loading && <LoadingSpinner />}
     </main>
   );
 }
+
