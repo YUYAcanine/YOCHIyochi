@@ -35,7 +35,7 @@ export default function Page2() {
   const [imgSrc, setImgSrc] = useState<string | null>(null);
 
   const [selectedText, setSelectedText] = useState("");
-  const menuMap = useMenuMap("/yochiyochi.csv");
+  const menuMap = useMenuMap("/nagasakidemo.csv");
   const { boxes, loading, scale, onImgLoad } = useOCR(imgSrc);
 
   // ===== 画像選択（ファイル or カメラ） =====
