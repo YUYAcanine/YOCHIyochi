@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { canon } from "@/lib/textNormalize";
 import type { ParsedRow, FoodMap } from "@/types/food";
 
-export function useMenuMap(csvPath = "/yochiyochi.csv") {
+export function useMenuMap(csvPath = "/nagasakidemo.csv") {
   const [menuMap, setMenuMap] = useState<FoodMap>({});
 
   useEffect(() => {
