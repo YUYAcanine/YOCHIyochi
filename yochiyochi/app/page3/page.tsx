@@ -20,7 +20,7 @@ export default function Page3() {
   const [selectedText, setSelectedText] = useState("");
 
   // CSV → 正規化マップ
-  const menuMap = useMenuMap("/yochiyochi.csv");
+  const menuMap = useMenuMap("/nagasakidemo.csv");
 
   // 画像 → OCR（枠とスケール）
   const { boxes, loading, scale, onImgLoad } = useOCR(imgSrc || null);
