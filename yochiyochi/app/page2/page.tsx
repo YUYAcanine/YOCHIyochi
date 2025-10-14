@@ -1,14 +1,12 @@
-// app/page2/page.tsx
 "use client";
 
-import { useState, useMemo, ChangeEvent } from "react";
+import { useState, useMemo, useEffect, ChangeEvent } from "react";
 import Image from "next/image";
 import { Camera, Image as ImageIcon, Loader2 } from "lucide-react";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import { ChecklistButton, ChecklistPanel, useChecklist } from "@/components/checklist";
 import OcrImage from "@/components/OcrImage";
 import BottomDrawer from "@/components/BottomDrawer";
-import { useMenuMap } from "@/hooks/useMenuMap";
 import { useOCR } from "@/hooks/useOCR";
 import { canon } from "@/lib/textNormalize";
 import type { PhaseKey } from "@/types/food";
@@ -16,6 +14,7 @@ import imageCompression from "browser-image-compression";
 import Ribbon from "@/components/Ribbon";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import * as gtag from "@/lib/gtag"; // ★ GA イベント用を追加
+import { supabase } from "@/lib/supabaseClient"; // ★ Supabaseを追加
 
 type Box = { description: string };
 type Variant = "forbidden" | "ok" | "none";
@@ -33,10 +32,43 @@ export default function Page2() {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [imgSrc, setImgSrc] = useState<string | null>(null);
-
   const [selectedText, setSelectedText] = useState("");
-  const menuMap = useMenuMap("/nagasakidemo.csv");
+  const [menuMap, setMenuMap] = useState<Record<string, any>>({}); // ★ Supabaseデータを保持
+
   const { boxes, loading, scale, onImgLoad } = useOCR(imgSrc);
+
+  // ===== Supabaseからデータを取得 =====
+  useEffect(() => {
+    async function fetchMenuData() {
+      const { data, error } = await supabase.from("NagasakiDemoData").select("*");
+      if (error) {
+        return;
+      }
+
+      const map: Record<string, any> = {};
+      let duplicateCount = 0;
+      let emptyKeyCount = 0;
+      for (const row of data ?? []) {
+        const key = canon(row.food_name);
+        if (!key) {
+          emptyKeyCount += 1;
+          continue;
+        }
+        if (map[key]) duplicateCount += 1;
+        map[key] = {
+          phase1: row.description_phase1?.trim(),
+          phase2: row.description_phase2?.trim(),
+          phase3: row.description_phase3?.trim(),
+          phase4: row.description_phase4?.trim(),
+          phase5: row.description_phase5?.trim(),
+        };
+      }
+
+      setMenuMap(map);
+    }
+
+    fetchMenuData();
+  }, []);
 
   // ===== 画像選択（ファイル or カメラ） =====
   const handleImageChange = async (e: ChangeEvent<HTMLInputElement>, source: "camera" | "file") => {
@@ -78,6 +110,7 @@ export default function Page2() {
   const classify = (raw?: string): { variant: Variant; text: string } => {
     const key = canon(raw);
     const info = key ? menuMap[key] : undefined;
+
     const val = info?.[phase]?.trim();
     if (!val) return { variant: "none", text: "" };
     if (val === "×") return { variant: "forbidden", text: "食べさせてはいけません" };
@@ -268,4 +301,3 @@ export default function Page2() {
     </main>
   );
 }
-
