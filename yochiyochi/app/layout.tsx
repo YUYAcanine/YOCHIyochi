@@ -10,6 +10,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ja">
       <head>
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+        />
+      </head>
+      <body>
+        <ChecklistProvider>
+          <GaTracker />
+          {children}
+        </ChecklistProvider>
+
+        {/* ✅ bodyの末尾で読み込む */}
         {GA_ID && (
           <>
             <Script
@@ -28,13 +40,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </Script>
           </>
         )}
-      </head>
-      <body>
-        <ChecklistProvider>
-          <GaTracker />
-          {children}
-        </ChecklistProvider>
       </body>
     </html>
   );
 }
+

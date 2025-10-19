@@ -12,6 +12,9 @@ type Props = {
   phase: PhaseKey;
   variant: Variant;
   onClose: () => void;
+  onShowAccidentInfo?: () => void;
+  accidentInfo?: string;
+  showAccidentInfo?: boolean;
 };
 
 export default function BottomDrawer({
@@ -20,6 +23,9 @@ export default function BottomDrawer({
   phase,
   variant,
   onClose,
+  onShowAccidentInfo,
+  accidentInfo,
+  showAccidentInfo,
 }: Props) {
   const open = !!openText && !!description && variant !== "none";
 
@@ -54,6 +60,44 @@ export default function BottomDrawer({
           phase={phase}
           variant={variant}
         />
+
+        {/* 事故情報ボタン */}
+        {onShowAccidentInfo && !showAccidentInfo && (
+          <div className="mt-2 pt-2 border-t border-[#E8DCD0] flex justify-end">
+            <button
+              type="button"
+              onClick={onShowAccidentInfo}
+              className="text-[#6b5a4e] underline underline-offset-4 
+                         font-semibold transition-opacity duration-200 hover:opacity-70 py-1"
+            >
+              事故情報を見る
+            </button>
+          </div>
+        )}
+
+        {/* 事故情報表示エリア */}
+        {showAccidentInfo && accidentInfo && (
+          <div className="mt-4 pt-4 border-t border-[#E8DCD0]">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold text-[#5C3A2E]">
+                事故情報
+              </h3>
+              <button
+                type="button"
+                onClick={() => onShowAccidentInfo && onShowAccidentInfo()}
+                className="text-[#6b5a4e] text-decoration-underline text-underline-offset-4 
+                           font-semibold transition-opacity duration-200 hover:opacity-70"
+              >
+                閉じる
+              </button>
+            </div>
+            <div className="bg-[#F8E8E8] rounded-lg p-4 border border-[#E8DCD0]">
+              <div className="text-[#4D3F36] leading-relaxed whitespace-pre-wrap">
+                {accidentInfo}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </aside>
   );
