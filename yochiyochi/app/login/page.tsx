@@ -6,13 +6,13 @@ import { supabase } from "@/lib/supabaseClient";
 
 export default function LoginPage() {
   const [memberId, setMemberId] = useState("");
-  const [passport, setPassport] = useState("");
+  const [passward, setPassward] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingAction, setLoadingAction] = useState<"login" | "register" | null>(null);
 
   const ensureFieldsFilled = () => {
-    if (!memberId.trim() || !passport.trim()) {
+    if (!memberId.trim() || !passward.trim()) {
       setStatus("会員IDとパスワードを入力してください。");
       return false;
     }
@@ -34,7 +34,7 @@ export default function LoginPage() {
         .from("login_credentials")
         .select("id, member_id, password, created_at")
         .eq("member_id", memberId)
-        .eq("password", passport)
+        .eq("password", passward)
         .maybeSingle();
 
       if (selectError && selectError.code !== "PGRST116") {
@@ -57,8 +57,8 @@ export default function LoginPage() {
         localStorage.setItem("yochiLoggedIn", "true");
       }
     } catch (err) {
-      console.error(err);
-      setStatus("ログイン処理に失敗しました。時間をおいて再度お試しください。");
+      console.error("handleLogin error:", err);
+      setStatus(getFriendlyErrorMessage("login", err));
     } finally {
       setIsLoading(false);
       setLoadingAction(null);
@@ -92,7 +92,7 @@ export default function LoginPage() {
 
       const { error: insertError } = await supabase.from("login_credentials").insert({
         member_id: memberId,
-        password: passport,
+        password: passward,
       });
 
       if (insertError) {
@@ -101,7 +101,7 @@ export default function LoginPage() {
 
       setStatus("初回登録が完了しました。続けてログインボタンからアクセスできます。");
     } catch (err) {
-      console.error(err);
+      console.error("handleRegister error:", err);
       setStatus("登録処理に失敗しました。時間をおいて再度お試しください。");
     } finally {
       setIsLoading(false);
@@ -114,7 +114,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 space-y-6">
         <div className="space-y-2 text-center">
           <h1 className="text-2xl font-bold text-[#3A2C25]">会員ログイン</h1>
-          <p className="text-sm text-[#6B5A4E]">登録済みの会員IDとパスポートを入力してください</p>
+          <p className="text-sm text-[#6B5A4E]">登録済みの会員IDとパスワードを入力してください</p>
         </div>
 
         <form className="space-y-4" onSubmit={handleLogin}>
@@ -135,9 +135,9 @@ export default function LoginPage() {
             パスワード
             <input
               type="password"
-              name="passport"
-              value={passport}
-              onChange={(e) => setPassport(e.target.value)}
+              name="passward"
+              value={passward}
+              onChange={(e) => setPassward(e.target.value)}
               className="mt-2 w-full rounded-xl border border-[#D3C5B9] px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#9c7b6c]"
               placeholder="英数字8桁以上"
               required
