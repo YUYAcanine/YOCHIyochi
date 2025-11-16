@@ -34,7 +34,7 @@ export default function Page3() {
   const classify = (raw?: string): { variant: Variant; text: string } => {
     const key = canon(raw);
     const info = key ? menuMap[key] : undefined;
-    const val = info?.[phase]?.trim();
+    const val = info?.[phase]?.trim(); 
 
     if (!val) return { variant: "none", text: "" };
     if (val === "×") return { variant: "forbidden", text: "食べさせてはいけません" };

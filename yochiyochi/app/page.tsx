@@ -1,12 +1,51 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { event } from "@/lib/gtag"; // GAイベント送信用
 
 export default function Page1() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const syncLoginState = () => {
+      const stored = localStorage.getItem("yochiLoggedIn") === "true";
+      setIsLoggedIn(stored);
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === "yochiLoggedIn") {
+        syncLoginState();
+      }
+    };
+
+    syncLoginState();
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, []);
+
   return (
     <main className="relative min-h-screen bg-[#F0E4D8] grid grid-rows-[1fr_auto_1fr] justify-items-center px-6">
+      <Link
+        href="/login"
+        className="btn-secondary fade-up-2 mypage-link"
+        onClick={() =>
+          event({
+            action: "login_click",
+            category: "button",
+            label: "page1 login",
+          })
+        }
+      >
+        マイページ
+      </Link>
       {/* 上段：ロゴ（1.2倍大きく） */}
       <div className="row-start-1 row-end-2 self-end mb-6 swoosh-in select-none">
         <Image
@@ -20,7 +59,7 @@ export default function Page1() {
       </div>
 
       {/* 中段：メインボタン（中央） */}
-      <div className="row-start-2 row-end-3 place-self-center">
+      <div className="row-start-2 row-end-3 place-self-center flex flex-col items-center gap-4">
         <Link
           href="/page2"
           className="btn-primary fade-up-1"
@@ -36,10 +75,12 @@ export default function Page1() {
         </Link>
       </div>
 
-      {/* 右下：サブリンク（少し内側に配置） */}
-      <Link href="/page4" className="underline-link fade-up-2">
-        食べられない食品を登録する
-      </Link>
+      {/* 右下：サブリンク（ログイン済みのときのみ表示） */}
+      {isLoggedIn && (
+        <Link href="/page4" className="underline-link fade-up-3">
+          食べられない食品を登録する
+        </Link>
+      )}
 
       <style jsx global>{`
         /* ロゴ入場 */
@@ -77,6 +118,9 @@ export default function Page1() {
         .fade-up-2 {
           animation: fadeUp 1200ms 1300ms ease-out both;
         }
+        .fade-up-3 {
+          animation: fadeUp 1200ms 1600ms ease-out both;
+        }
 
         /* メインボタン：丸角・大きめ文字 */
         .btn-primary {
@@ -99,6 +143,40 @@ export default function Page1() {
         }
         .btn-primary:active {
           transform: translateY(1px);
+        }
+        .btn-secondary {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0.9rem 1.6rem;
+          border-radius: 0.9rem;
+          font-weight: 600;
+          font-size: 1.2rem;
+          line-height: 1;
+          text-decoration: none;
+          background: #f5ede6;
+          color: #6b5a4e;
+          border: 1px solid #d6c2b4;
+          transition: background-color 0.25s, transform 0.12s, opacity 0.25s;
+        }
+        .btn-secondary:hover {
+          background: #e7dbcf;
+        }
+        .btn-secondary:active {
+          transform: translateY(1px);
+        }
+        .mypage-link {
+          position: absolute;
+          top: 2rem;
+          right: clamp(1rem, 5vw, 3rem);
+          z-index: 10;
+        }
+        @media (max-width: 640px) {
+          .mypage-link {
+            top: 1rem;
+            right: 1rem;
+            padding: 0.75rem 1.2rem;
+          }
         }
 
         /* サブリンク：右下だが余白を持たせる */
