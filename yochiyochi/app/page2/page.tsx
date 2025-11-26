@@ -211,43 +211,49 @@ export default function Page2() {
   };
 
   // 事故情報を取得して表示
-  const handleShowAccidentInfo = async () => {
-    if (!selectedText) return;
+ const handleShowAccidentInfo = async () => {
+  if (!selectedText) return;
 
-    // 既に表示されている場合は閉じる
-    if (showAccidentInfo) {
-      setShowAccidentInfo(false);
-      return;
-    }
+  const key = canon(selectedText);
+  const foodId = key ? foodIdMap[key] : null;
 
-    const key = canon(selectedText);
-    const foodId = key ? foodIdMap[key] : null;
-
-    if (!foodId) {
-      setAccidentInfo("該当する食材の事故情報が見つかりません。");
-      setShowAccidentInfo(true);
-      return;
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from("yochiyochi_accidentlist")
-        .select("description_accident")
-        .eq("food_id", foodId)
-        .single();
-
-      if (error || !data) {
-        setAccidentInfo("事故情報が見つかりません。");
-      } else {
-        setAccidentInfo(data.description_accident || "事故情報がありません。");
-      }
-    } catch (error) {
-      console.error("事故情報取得エラー:", error);
-      setAccidentInfo("事故情報の取得に失敗しました。");
-    }
-
+  if (!foodId) {
+    setAccidentInfo("該当する食材の事故情報が見つかりません。");
     setShowAccidentInfo(true);
-  };
+    return;
+  }
+
+  try {
+    console.log("Accident query:", { foodId });
+
+    const { data, error } = await supabase
+      .from("yochiyochi_accidentlist")
+      .select("description_accident")
+      .eq("food_id", foodId);
+
+    console.log("Supabase accident response:", { data, error });
+
+    if (error) {
+      setAccidentInfo("事故情報の取得でエラーが発生しました。");
+    } else if (!data || data.length === 0) {
+      setAccidentInfo("事故情報が見つかりません。");
+    } else {
+      // 複数行を1つの文字列にまとめる
+      const descriptions = data
+        .map((row, i) => `${i + 1}. ${row.description_accident}`)
+        .join("\n\n");
+
+      setAccidentInfo(descriptions);
+    }
+  } catch (e) {
+    console.error("事故情報取得エラー:", e);
+    setAccidentInfo("事故情報の取得に失敗しました。");
+  }
+
+  setShowAccidentInfo(true);
+};
+
+
 
   // =============== Upload View ===============
   const UploadView = (

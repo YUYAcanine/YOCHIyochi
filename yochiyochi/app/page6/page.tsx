@@ -14,10 +14,13 @@ export default function Page6() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [selectedFood, setSelectedFood] = useState<any>(null);
+
   const [menuMap, setMenuMap] = useState<Record<string, any>>({});
   const [foodIdMap, setFoodIdMap] = useState<Record<string, number>>({});
+
   const [accidentInfo, setAccidentInfo] = useState<string>("");
   const [showAccidentInfo, setShowAccidentInfo] = useState(false);
+
   const [phase, setPhase] = useState<PhaseKey>("phase1");
   const [isClient, setIsClient] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
@@ -27,7 +30,7 @@ export default function Page6() {
     setIsClient(true);
   }, []);
 
-  // データを取得
+  // データ取得
   useEffect(() => {
     if (!isClient) return;
 
@@ -38,26 +41,7 @@ export default function Page6() {
           .select("food_id, food_name, cook_id");
 
         if (foodError) {
-          const { data: fallbackData, error: fallbackError } = await supabase
-            .from("NagasakiDemoData")
-            .select("*");
-
-          if (fallbackError || !fallbackData) return;
-
-          const map: Record<string, any> = {};
-          for (const row of fallbackData) {
-            const key = canon(row.food_name);
-            if (key) {
-              map[key] = {
-                phase1: row.description_phase1?.trim(),
-                phase2: row.description_phase2?.trim(),
-                phase3: row.description_phase3?.trim(),
-                phase4: row.description_phase4?.trim(),
-                phase5: row.description_phase5?.trim(),
-              };
-            }
-          }
-          setMenuMap(map);
+          console.error("foodError", foodError);
           return;
         }
 
@@ -76,18 +60,19 @@ export default function Page6() {
           cookMap.set(cook.cook_id, cook);
         }
 
-        const map: Record<string, any> = {};
-        const foodIdMap: Record<string, number> = {};
+        const mm: Record<string, any> = {};
+        const fid: Record<string, number> = {};
 
         for (const food of foodData) {
           const key = canon(food.food_name);
           if (!key) continue;
 
-          foodIdMap[key] = food.food_id;
+          fid[key] = food.food_id;
 
           const cookInfo = cookMap.get(food.cook_id);
           if (cookInfo) {
-            map[key] = {
+            mm[key] = {
+              original_name: food.food_name, // ★ 元の日本語を保持
               phase1: cookInfo.description_phase1?.trim(),
               phase2: cookInfo.description_phase2?.trim(),
               phase3: cookInfo.description_phase3?.trim(),
@@ -97,8 +82,8 @@ export default function Page6() {
           }
         }
 
-        setMenuMap(map);
-        setFoodIdMap(foodIdMap);
+        setMenuMap(mm);
+        setFoodIdMap(fid);
       } catch (error) {
         console.error("データ取得エラー:", error);
       }
@@ -107,7 +92,7 @@ export default function Page6() {
     fetchMenuData();
   }, [isClient]);
 
-  // 検索実行
+  // 🔍 検索機能（canon でキー検索）
   const handleSearch = () => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
@@ -121,7 +106,8 @@ export default function Page6() {
     for (const [key, value] of Object.entries(menuMap)) {
       if (key.includes(query) || query.includes(key)) {
         results.push({
-          food_name: key,
+          key,                        // canon 後キー
+          food_name: value.original_name, // 表示用の日本語
           ...value,
         });
       }
@@ -138,7 +124,7 @@ export default function Page6() {
     setShowAccidentInfo(false);
   };
 
-  // 事故情報を取得
+  // 🚨 事故情報の取得（複数件対応）
   const handleShowAccidentInfo = async () => {
     if (!selectedFood) return;
 
@@ -147,8 +133,8 @@ export default function Page6() {
       return;
     }
 
-    const key = canon(selectedFood.food_name);
-    const foodId = key ? foodIdMap[key] : null;
+    const key = selectedFood.key; // canon したキー
+    const foodId = foodIdMap[key];
 
     if (!foodId) {
       setAccidentInfo("該当する食材の事故情報が見つかりません。");
@@ -160,13 +146,17 @@ export default function Page6() {
       const { data, error } = await supabase
         .from("yochiyochi_accidentlist")
         .select("description_accident")
-        .eq("food_id", foodId)
-        .single();
+        .eq("food_id", foodId);
 
-      if (error || !data) {
+      if (error) {
+        setAccidentInfo("事故情報が見つかりません。");
+      } else if (!data || data.length === 0) {
         setAccidentInfo("事故情報が見つかりません。");
       } else {
-        setAccidentInfo(data.description_accident || "事故情報がありません。");
+        // 複数行をまとめる
+        setAccidentInfo(
+          data.map((row, i) => `${i + 1}. ${row.description_accident}`).join("\n\n")
+        );
       }
     } catch (error) {
       console.error("事故情報取得エラー:", error);
@@ -176,7 +166,7 @@ export default function Page6() {
     setShowAccidentInfo(true);
   };
 
-  // 調理法の分類
+  // 調理法分類
   const classify = (food: any): { variant: Variant; text: string } => {
     const val = food?.[phase]?.trim();
     if (!val) return { variant: "none", text: "" };
@@ -189,7 +179,7 @@ export default function Page6() {
     ? classify(selectedFood)
     : { variant: "none" as Variant, text: "" };
 
-  // パネルを閉じる
+  // パネル閉じる
   const handleCloseDrawer = () => {
     setSelectedFood(null);
     setAccidentInfo("");
@@ -215,7 +205,7 @@ export default function Page6() {
               <div className="flex-1 relative">
                 <input
                   type="text"
-                  value={isClient ? searchQuery : ""}  // ← SSRでも常にcontrolled
+                  value={isClient ? searchQuery : ""}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
                     if (hasSearched) setHasSearched(false);
@@ -312,6 +302,7 @@ export default function Page6() {
         </div>
       </div>
 
+      {/* ▼ BottomDrawer 呼び出し */}
       <BottomDrawer
         openText={selectedFood?.food_name || ""}
         description={selected.text}
@@ -325,4 +316,3 @@ export default function Page6() {
     </main>
   );
 }
-
