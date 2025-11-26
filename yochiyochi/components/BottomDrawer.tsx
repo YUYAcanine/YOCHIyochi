@@ -12,6 +12,8 @@ type Props = {
   phase: PhaseKey;
   variant: Variant;
   onClose: () => void;
+
+  // 事故情報（開く）
   onShowAccidentInfo?: () => void;
   accidentInfo?: string;
   showAccidentInfo?: boolean;
@@ -37,13 +39,14 @@ export default function BottomDrawer({
       role="dialog"
       aria-label="説明"
     >
-      {/* ▼ 背景色をうすい彩度低めのピンクに変更 */}
       <div className="mx-auto max-w-3xl rounded-t-2xl border border-zinc-200 bg-[#F8E8E8] shadow-2xl p-4">
+        
+        {/* ヘッダー */}
         <div className="flex items-center justify-between mb-2">
-          {/* ▼ ラベルを“食材名”に変更 */}
           <div className="text-sm text-zinc-700">
             食材名：<span className="font-medium text-zinc-900">{openText}</span>
           </div>
+
           <button
             type="button"
             onClick={onClose}
@@ -55,13 +58,14 @@ export default function BottomDrawer({
           </button>
         </div>
 
+        {/* フェーズ説明 */}
         <PhaseDescriptionBox
           description={description}
           phase={phase}
           variant={variant}
         />
 
-        {/* 事故情報ボタン */}
+        {/* 事故情報を見る（開く） */}
         {onShowAccidentInfo && !showAccidentInfo && (
           <div className="mt-2 pt-2 border-t border-[#E8DCD0] flex justify-end">
             <button
@@ -75,30 +79,28 @@ export default function BottomDrawer({
           </div>
         )}
 
-        {/* 事故情報表示エリア */}
+        {/* ▼▼ 事故情報エリア（閉じるボタンなし / 高さ1/3 / スクロール） ▼▼ */}
         {showAccidentInfo && accidentInfo && (
           <div className="mt-4 pt-4 border-t border-[#E8DCD0]">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold text-[#5C3A2E]">
-                事故情報
-              </h3>
-              <button
-                type="button"
-                onClick={() => onShowAccidentInfo && onShowAccidentInfo()}
-                className="text-[#6b5a4e] text-decoration-underline text-underline-offset-4 
-                           font-semibold transition-opacity duration-200 hover:opacity-70"
-              >
-                閉じる
-              </button>
-            </div>
-            <div className="bg-[#F8E8E8] rounded-lg p-4 border border-[#E8DCD0]">
+            <h3 className="text-lg font-semibold text-[#5C3A2E] mb-3">
+              事故情報
+            </h3>
+
+            {/* 高さ33vh（画面の下1/3）＋スクロール */}
+            <div
+              className="bg-[#F8E8E8] rounded-lg p-4 border border-[#E8DCD0]
+                         max-h-[33vh] overflow-y-auto"
+            >
               <div className="text-[#4D3F36] leading-relaxed whitespace-pre-wrap">
                 {accidentInfo}
               </div>
             </div>
           </div>
         )}
+        {/* ▲▲ 事故情報エリア ▲▲ */}
+
       </div>
     </aside>
   );
 }
+
