@@ -75,12 +75,6 @@ export default function Page1() {
         </Link>
       </div>
 
-      {/* 右下：サブリンク（ログイン済みのときのみ表示） */}
-      {isLoggedIn && (
-        <Link href="/page4" className="underline-link fade-up-3">
-          食べられない食品を登録する
-        </Link>
-      )}
 
       <style jsx global>{`
         /* ロゴ入場 */

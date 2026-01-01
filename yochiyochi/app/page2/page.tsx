@@ -1,392 +1,252 @@
 "use client";
 
-import { useState, useMemo, useEffect, ChangeEvent } from "react";
-import Image from "next/image";
-import { Camera, Image as ImageIcon, Loader2, Search } from "lucide-react";
-import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
-import { ChecklistButton, ChecklistPanel, useChecklist } from "@/components/checklist";
-import OcrImage from "@/components/OcrImage";
-import BottomDrawer from "@/components/BottomDrawer";
-import { useOCR } from "@/hooks/useOCR";
-import { canon } from "@/lib/textNormalize";
-import type { PhaseKey } from "@/types/food";
-import imageCompression from "browser-image-compression";
+/**
+ * このページの役割
+ * - 画像（カメラ/アルバム）を選ぶ
+ * - OCR結果のテキスト領域(boxes)を画像上に重ねて表示
+ * - タップされたテキストをメニュー辞書に照合し、フェーズ別に判定
+ * - 選択中は下部ドロワーに判定結果/事故情報を表示
+ */
+
+import React, { useCallback, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+
 import Ribbon from "@/components/Ribbon";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import * as gtag from "@/lib/gtag"; // ★ GA イベント用を追加
-import { supabase } from "@/lib/supabaseClient"; // ★ Supabaseを追加
+import { useChecklist } from "@/components/checklist";
 
-type Box = { description: string };
+import { Camera, Image as ImageIcon, Search } from "lucide-react";
+import type { ChangeEvent, ComponentProps } from "react";
+
+import OcrStage from "@/components/OcrStage";
+import OcrBottomDrawer from "@/components/OcrBottomDrawer";
+import OcrImage from "@/components/OcrImage";
+
+import { useOCR } from "@/hooks/useOCR";
+import { useMenuData } from "@/hooks/useMenuData";
+import { useAccidentInfo } from "@/hooks/useAccidentInfo";
+import { useImageInput } from "@/hooks/useImageInput";
+import { useAnalytics } from "@/hooks/useAnalytics";
+
+import { canon } from "@/lib/textNormalize";
+import type { PhaseKey } from "@/types/food";
+
+/* 型：OcrImageの型から参照して揃える */
+type OcrImageProps = ComponentProps<typeof OcrImage>;
+type Box = OcrImageProps["boxes"][number];
+type ScaleInfo = OcrImageProps["scale"];
+
 type Variant = "forbidden" | "ok" | "none";
 
-// ====== 色とボタン ======
-const BTN_BASE =
-  "inline-flex items-center justify-center rounded-xl px-6 py-3 font-semibold transition focus:outline-none focus:ring-2 focus:ring-offset-2";
+type MenuInfo = {
+  phase1?: string;
+  phase2?: string;
+  phase3?: string;
+  phase4?: string;
+  phase5?: string;
+};
 
-const BTN_SECONDARY = `${BTN_BASE} bg-[#CBB9AB] hover:bg-[#B8A598] text-[#3A2C25] border border-[#BCAAA0] focus:ring-[#A88877] focus:ring-offset-[#FAF8F6]`;
-const BTN_WIDE_SECONDARY = `${BTN_SECONDARY} w-full max-w-[480px] py-4`;
+const DEFAULT_SCALE: ScaleInfo = { scale: 1, offsetX: 0, offsetY: 0 };
+
+/* 見た目用 */
+const RIBBON_HEIGHT = "6rem" as const;
+const RIBBON_SHIFT = "7rem" as const;
+
+/* phase を menu のキーに変換（保険） */
+const toMenuPhaseKey = (phase: PhaseKey): keyof MenuInfo => {
+  if (
+    phase === "phase1" ||
+    phase === "phase2" ||
+    phase === "phase3" ||
+    phase === "phase4" ||
+    phase === "phase5"
+  ) {
+    return phase;
+  }
+  return "phase1";
+};
 
 export default function Page2() {
+  const router = useRouter();
+
+  // 現在のフェーズ
   const { phase } = useChecklist();
 
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  // 画像と選択テキスト
   const [imgSrc, setImgSrc] = useState<string | null>(null);
-  const [selectedText, setSelectedText] = useState("");
-  const [menuMap, setMenuMap] = useState<Record<string, any>>({}); // ★ Supabaseデータを保持
-  const [foodIdMap, setFoodIdMap] = useState<Record<string, number>>({}); // ★ food_name -> food_id マップ
-  const [accidentInfo, setAccidentInfo] = useState<string>("");
-  const [showAccidentInfo, setShowAccidentInfo] = useState(false);
+  const [selectedText, setSelectedText] = useState<string>("");
 
+  // テキスト選択中ならドロワーを開く
+  const drawerOpen = Boolean(selectedText);
+
+  // 辞書データ（食品名→フェーズ別説明、食品名→ID）
+  const { menuMap, foodIdMap } = useMenuData() as {
+    menuMap: Record<string, MenuInfo>;
+    foodIdMap: Record<string, number>;
+  };
+
+  // 事故情報
+  const { accidentInfo, showAccidentInfo, fetchByFoodId, reset: resetAccident } =
+    useAccidentInfo();
+
+  // 画像入力（file→dataURL）
+  const { pickImageAsDataUrl } = useImageInput();
+
+  // 計測（任意）
+  const { trackImageSelected, trackOcrTextSelected } = useAnalytics();
+
+  // OCR（imgSrcが入ると実行）
   const { boxes, loading, scale, onImgLoad } = useOCR(imgSrc);
 
-  // ===== Supabaseからデータを取得 =====
-  useEffect(() => {
-    async function fetchMenuData() {
-      try {
-        // yochiyochi_foodlistからデータを取得
-        const { data: foodData, error: foodError } = await supabase
-          .from("yochiyochi_foodlist")
-          .select("food_id, food_name, cook_id");
-        
-        if (foodError) {
-          // フォールバック: 元のテーブルを使用
-          const { data: fallbackData, error: fallbackError } = await supabase
-            .from("NagasakiDemoData")
-            .select("*");
-          
-          if (fallbackError || !fallbackData) return;
-          
-          const map: Record<string, any> = {};
-          for (const row of fallbackData) {
-            const key = canon(row.food_name);
-            if (key) {
-              map[key] = {
-                phase1: row.description_phase1?.trim(),
-                phase2: row.description_phase2?.trim(),
-                phase3: row.description_phase3?.trim(),
-                phase4: row.description_phase4?.trim(),
-                phase5: row.description_phase5?.trim(),
-              };
-            }
-          }
-          setMenuMap(map);
-          return;
-        }
+  /* 判定：選択文字を辞書に照合して forbidden/ok/none を返す */
+  const classify = useCallback(
+    (raw?: string): { variant: Variant; text: string } => {
+      const key = canon(raw);
+      if (!key) return { variant: "none", text: "" };
 
-        if (!foodData || foodData.length === 0) return;
+      const info = menuMap[key];
+      const phaseKey = toMenuPhaseKey(phase);
+      const val = info?.[phaseKey]?.trim();
 
-        // yochiyochi_cooklistからデータを取得
-        const { data: cookData, error: cookError } = await supabase
-          .from("yochiyochi_cooklist")
-          .select("cook_id, description_phase1, description_phase2, description_phase3, description_phase4, description_phase5");
-        
-        if (cookError || !cookData || cookData.length === 0) return;
+      if (!val) return { variant: "none", text: "" };
 
-        // cook_idをキーとしたマップを作成
-        const cookMap = new Map();
-        for (const cook of cookData) {
-          cookMap.set(cook.cook_id, cook);
-        }
-
-        // foodlistとcooklistを結合してマップを作成
-        const map: Record<string, any> = {};
-        const foodIdMap: Record<string, number> = {};
-        
-        for (const food of foodData) {
-          const key = canon(food.food_name);
-          if (!key) continue;
-          
-          // food_idマップを作成
-          foodIdMap[key] = food.food_id;
-          
-          // cook_idで調理法データを取得
-          const cookInfo = cookMap.get(food.cook_id);
-          if (cookInfo) {
-            map[key] = {
-              phase1: cookInfo.description_phase1?.trim(),
-              phase2: cookInfo.description_phase2?.trim(),
-              phase3: cookInfo.description_phase3?.trim(),
-              phase4: cookInfo.description_phase4?.trim(),
-              phase5: cookInfo.description_phase5?.trim(),
-            };
-          }
-        }
-
-        setMenuMap(map);
-        setFoodIdMap(foodIdMap);
-      } catch (error) {
-        console.error("データ取得エラー:", error);
+      if (val === "食べさせてはいけません。") {
+        return { variant: "forbidden", text: "食べさせてはいけません" };
       }
-    }
+      return { variant: "ok", text: val };
+    },
+    [menuMap, phase]
+  );
 
-    fetchMenuData();
-  }, []);
+  // none は表示しない（重要なboxだけ見せる）
+  const visibleFilter = useCallback(
+    (b: Box) => classify(b.description).variant !== "none",
+    [classify]
+  );
 
-  // ===== 画像選択（ファイル or カメラ） =====
-  const handleImageChange = async (e: ChangeEvent<HTMLInputElement>, source: "camera" | "file") => {
-    const picked = e.target.files?.[0];
-    if (!picked) return;
+  // boxの見た目用（色分けなど）
+  const getBoxVariant = useCallback(
+    (b: Box): Variant => classify(b.description).variant,
+    [classify]
+  );
 
-    // ★ GAイベント送信
-    gtag.event({
-      action: source === "camera" ? "camera_upload_selected" : "file_upload_selected",
-      category: "engagement",
-      label: picked.name,
-    });
-
-    let compressed = picked;
-    try {
-      compressed = await imageCompression(picked, {
-        maxSizeMB: 1,
-        maxWidthOrHeight: 1280,
-        useWebWorker: true,
-      });
-    } catch {
-      compressed = picked;
-    }
-    setFile(compressed);
-
-    const toDataURL = (blob: Blob) =>
-      new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-
-    const dataUrl = await toDataURL(compressed);
-    setPreview(dataUrl);
-    setImgSrc(dataUrl); // OCR表示へ切替
-  };
-
-  const classify = (raw?: string): { variant: Variant; text: string } => {
-    const key = canon(raw);
-    const info = key ? menuMap[key] : undefined;
-
-    const val = info?.[phase]?.trim();
-    if (!val) return { variant: "none", text: "" };
-    if (val === "食べさせてはいけません。") return { variant: "forbidden", text: "食べさせてはいけません" };
-    return { variant: "ok", text: val };
-  };
-
-  const visibleFilter = (b: Box) => classify(b.description).variant !== "none";
-
+  // ドロワーに出す判定結果
   const selected = useMemo(() => {
     if (!selectedText) return { variant: "none" as Variant, text: "" };
     return classify(selectedText);
-  }, [selectedText, menuMap, phase]);
+  }, [selectedText, classify]);
 
-  const getBoxVariant = (b: Box): Variant => classify(b.description).variant;
+  /* 画像選択 */
+  const handlePickFile = useCallback(
+    async (file: File, source: "camera" | "file") => {
+      trackImageSelected(source, file.name);
+      const dataUrl = await pickImageAsDataUrl(file);
+      setImgSrc(dataUrl);
+      setSelectedText("");
+      resetAccident();
+    },
+    [pickImageAsDataUrl, resetAccident, trackImageSelected]
+  );
 
-  const resetImage = () => {
-    setFile(null);
-    setPreview(null);
+  /* boxをタップ */
+  const handlePickText = useCallback(
+    (text: string) => {
+      setSelectedText(text);
+      if (text) trackOcrTextSelected(text);
+    },
+    [trackOcrTextSelected]
+  );
+
+  /* ドロワー閉じる */
+  const handleCloseDrawer = useCallback(() => {
+    setSelectedText("");
+    resetAccident();
+  }, [resetAccident]);
+
+  /* 画像リセット */
+  const handleResetImage = useCallback(() => {
     setImgSrc(null);
     setSelectedText("");
-    setAccidentInfo("");
-    setShowAccidentInfo(false);
-  };
+    resetAccident();
+  }, [resetAccident]);
 
-  // Drawer 開いているか（= テキスト選択あり）
-  const drawerOpen = Boolean(selectedText);
-
-  // ★ OCRテキスト選択時にGA送信
-  const handlePick = (text: string) => {
-    setSelectedText(text);
-    if (text) {
-      gtag.event({
-        action: "ocr_text_selected",
-        category: "engagement",
-        label: text,
-      });
-    }
-  };
-
-  // BottomDrawerを閉じる際に事故情報もリセット
-  const handleCloseDrawer = () => {
-    setSelectedText("");
-    setAccidentInfo("");
-    setShowAccidentInfo(false);
-  };
-
-  // 事故情報を取得して表示
-  const handleShowAccidentInfo = async () => {
+  /* 事故情報表示（食品IDで取得） */
+  const handleShowAccident = useCallback(async () => {
     if (!selectedText) return;
-
-    // 既に表示されている場合は閉じる
-    if (showAccidentInfo) {
-      setShowAccidentInfo(false);
-      return;
-    }
-
     const key = canon(selectedText);
     const foodId = key ? foodIdMap[key] : null;
+    await fetchByFoodId(foodId);
+  }, [selectedText, foodIdMap, fetchByFoodId]);
 
-    if (!foodId) {
-      setAccidentInfo("該当する食材の事故情報が見つかりません。");
-      setShowAccidentInfo(true);
-      return;
-    }
+  /* 検索画面へ */
+  const handleGoSearch = useCallback(() => {
+    router.push("/page6");
+  }, [router]);
 
-    try {
-      const { data, error } = await supabase
-        .from("yochiyochi_accidentlist")
-        .select("description_accident")
-        .eq("food_id", foodId)
-        .single();
+  /* input[type=file] 共通ハンドラ */
+  const handleChange =
+    (source: "camera" | "file") =>
+    (e: ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      handlePickFile(file, source);
+      e.target.value = ""; // 同じ画像を再選択できるように
+    };
 
-      if (error || !data) {
-        setAccidentInfo("事故情報が見つかりません。");
-      } else {
-        setAccidentInfo(data.description_accident || "事故情報がありません。");
-      }
-    } catch (error) {
-      console.error("事故情報取得エラー:", error);
-      setAccidentInfo("事故情報の取得に失敗しました。");
-    }
-
-    setShowAccidentInfo(true);
-  };
-
-  // =============== Upload View ===============
+  /* 画像未選択時のUI */
   const UploadView = (
     <div className="flex flex-col flex-grow items-center justify-center">
-      {!preview && (
-        <div className="flex flex-col gap-8 items-center justify-center flex-grow mt-8">
-          {/* カメラとアルバムを横並び */}
-          <div className="flex gap-8 items-center justify-center">
-            {/* カメラ */}
-            <div className="flex flex-col items-center gap-3">
-              <p className="text-[#6B5A4E] text-lg font-bold">カメラで撮る</p>
-              <label
-                htmlFor="camera-upload"
-                className="w-32 h-32 bg-[#E8DCD0] border border-[#D3C5B9] flex items-center justify-center rounded-xl cursor-pointer"
-              >
-                <Camera className="w-10 h-10" />
-                <input
-                  id="camera-upload"
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={(e) => handleImageChange(e, "camera")} // ★ カメラ選択
-                  className="hidden"
-                />
-              </label>
-            </div>
-
-            {/* ファイル */}
-            <div className="flex flex-col items-center gap-3">
-              <p className="text-[#6B5A4E] text-lg font-bold">アルバムから選ぶ</p>
-              <label
-                htmlFor="file-upload"
-                className="w-32 h-32 bg-[#E8DCD0] border border-[#D3C5B9] flex items-center justify-center rounded-xl cursor-pointer"
-              >
-                <ImageIcon className="w-10 h-10" />
-                <input
-                  id="file-upload"
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => handleImageChange(e, "file")} // ★ ファイル選択
-                  className="hidden"
-                />
-              </label>
-            </div>
-          </div>
-
-          {/* 検索ボタン */}
+      <div className="flex flex-col gap-8 items-center justify-center flex-grow mt-8">
+        <div className="flex gap-8 items-center justify-center">
           <div className="flex flex-col items-center gap-3">
-            <p className="text-[#6B5A4E] text-lg font-bold">検索する</p>
-            <a
-              href="/page6"
-              className="w-32 h-32 bg-[#E8DCD0] border border-[#D3C5B9] flex items-center justify-center rounded-xl cursor-pointer hover:bg-[#D3C5B9] transition"
-            >
-              <Search className="w-10 h-10" />
-            </a>
+            <p className="text-[#6B5A4E] text-lg font-bold">カメラで撮る</p>
+            <label className="w-32 h-32 bg-[#E8DCD0] border border-[#D3C5B9] flex items-center justify-center rounded-xl cursor-pointer">
+              <Camera className="w-10 h-10" />
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleChange("camera")}
+                className="hidden"
+              />
+            </label>
+          </div>
+
+          <div className="flex flex-col items-center gap-3">
+            <p className="text-[#6B5A4E] text-lg font-bold">アルバムから選ぶ</p>
+            <label className="w-32 h-32 bg-[#E8DCD0] border border-[#D3C5B9] flex items-center justify-center rounded-xl cursor-pointer">
+              <ImageIcon className="w-10 h-10" />
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleChange("file")}
+                className="hidden"
+              />
+            </label>
           </div>
         </div>
-      )}
 
-      {/* アップロード前プレビュー */}
-      {preview && !imgSrc && (
-        <div className="px-4 flex justify-center">
-          <Image
-            src={preview}
-            alt="preview"
-            width={900}
-            height={900}
-            className="rounded-xl border border-[#D3C5B9] max-w-[92vw] max-h-[78vh] w-auto h-auto"
-          />
-        </div>
-      )}
-    </div>
-  );
-
-  // =============== OCR View ===============
-  const OcrView = (
-    <div className="relative flex flex-col flex-grow h-[calc(100svh-var(--ribbon-h))] px-3">
-      <div className="flex-none py-2">
-        <ChecklistButton />
-        <ChecklistPanel />
-      </div>
-
-      <div
-        className={`relative flex-grow transition-transform duration-500 will-change-transform ${
-          drawerOpen ? "-translate-y-[var(--ribbon-shift)]" : "translate-y-0"
-        }`}
-        aria-busy={loading}
-      >
-        <div className="absolute inset-0">
-          <TransformWrapper doubleClick={{ disabled: true }} disabled={loading}>
-            <TransformComponent wrapperClass="w-full h-full">
-              <div className="w-full h-full">
-                <OcrImage
-                  imgSrc={imgSrc!}
-                  boxes={boxes}
-                  scale={scale}
-                  phase={phase as PhaseKey}
-                  onImgLoad={onImgLoad}
-                  filter={visibleFilter}
-                  onPick={handlePick} // ★ OCRテキスト選択イベント
-                  getBoxVariant={getBoxVariant}
-                />
-              </div>
-            </TransformComponent>
-          </TransformWrapper>
-        </div>
-
-        {/* ▼ プレビュー直下に小さめのボタン配置 */}
-        <div className="absolute left-1/2 -translate-x-1/2 bottom-4 z-40 flex justify-center pointer-events-none">
-          <a
-            href="/page2"
-            onClick={(e) => {
-              e.preventDefault();
-              resetImage();
-            }}
-            className="inline-flex items-center justify-center rounded-lg 
-                       px-6 py-2 text-sm font-medium 
-                       bg-[#CBB9AB] hover:bg-[#B8A598] text-[#3A2C25] 
-                       border border-[#BCAAA0] 
-                       shadow-md backdrop-blur-sm bg-white/85 
-                       pointer-events-auto"
+        <div className="flex flex-col items-center gap-3">
+          <p className="text-[#6B5A4E] text-lg font-bold">検索する</p>
+          <button
+            type="button"
+            onClick={handleGoSearch}
+            className="w-32 h-32 bg-[#E8DCD0] border border-[#D3C5B9] flex items-center justify-center rounded-xl hover:bg-[#D3C5B9] transition"
           >
-            別の画像にする
-          </a>
+            <Search className="w-10 h-10" />
+          </button>
         </div>
       </div>
     </div>
   );
-
-  const RIBBON_HEIGHT = "6rem" as const;
-  const RIBBON_SHIFT = "7rem" as const;
 
   return (
     <main
       className="min-h-screen bg-[#FAF8F6] text-[#4D3F36] relative flex flex-col"
       style={
         {
-          ["--ribbon-h" as any]: RIBBON_HEIGHT,
-          ["--ribbon-shift" as any]: RIBBON_SHIFT,
+          "--ribbon-h": RIBBON_HEIGHT,
+          "--ribbon-shift": RIBBON_SHIFT,
         } as React.CSSProperties
       }
     >
@@ -402,15 +262,33 @@ export default function Page2() {
         logoClassName="h-20 w-auto object-contain"
       />
 
-      <div className="flex-grow pt-24">{imgSrc ? OcrView : UploadView}</div>
+      <div className="flex-grow pt-24">
+        {imgSrc ? (
+          <OcrStage
+            imgSrc={imgSrc}
+            boxes={boxes}
+            loading={loading}
+            scale={scale ?? DEFAULT_SCALE}
+            phase={phase as PhaseKey}
+            drawerOpen={drawerOpen}
+            onImgLoad={onImgLoad}
+            filterBox={visibleFilter}
+            getVariant={getBoxVariant}
+            onPickText={handlePickText}
+            onReset={handleResetImage}
+          />
+        ) : (
+          UploadView
+        )}
+      </div>
 
-      <BottomDrawer
-        openText={selectedText}
+      <OcrBottomDrawer
+        selectedText={selectedText}
         description={selected.text}
         phase={phase as PhaseKey}
         variant={selected.variant}
         onClose={handleCloseDrawer}
-        onShowAccidentInfo={handleShowAccidentInfo}
+        onShowAccident={handleShowAccident}
         accidentInfo={accidentInfo}
         showAccidentInfo={showAccidentInfo}
       />

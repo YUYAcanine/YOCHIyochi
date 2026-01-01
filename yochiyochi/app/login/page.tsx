@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function LoginPage() {
@@ -10,6 +11,7 @@ export default function LoginPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingAction, setLoadingAction] = useState<"login" | "register" | null>(null);
+  const router = useRouter();
 
   const ensureFieldsFilled = () => {
     if (!memberId.trim() || !passward.trim()) {
@@ -17,6 +19,28 @@ export default function LoginPage() {
       return false;
     }
     return true;
+  };
+
+  const getFriendlyErrorMessage = (action: "login" | "register", err: unknown) => {
+    const base = action === "login" ? "ログイン" : "登録";
+    if (err && typeof err === "object") {
+      const maybe = err as Partial<{
+        message: string;
+        details: string;
+        hint: string;
+        code: string;
+      }>;
+      const parts = [maybe.message, maybe.details, maybe.hint, maybe.code].filter(
+        (value) => typeof value === "string" && value.trim().length > 0
+      );
+      if (parts.length > 0) {
+        return `${base}に失敗しました: ${parts.join(" / ")}`;
+      }
+    }
+    if (err instanceof Error && err.message) {
+      return `${base}に失敗しました: ${err.message}`;
+    }
+    return `${base}に失敗しました。時間をおいて再度お試しください。`;
   };
 
   const handleLogin = async (e?: React.FormEvent<HTMLFormElement>) => {
@@ -52,10 +76,11 @@ export default function LoginPage() {
       const lastRegistered = existingRecord.created_at
         ? new Date(existingRecord.created_at).toLocaleString()
         : "登録日時不明";
-      setStatus(`ログインしました。（最終登録：${lastRegistered}）`);
+      setStatus(`ログインしました。（最終登録: ${lastRegistered}）`);
       if (typeof window !== "undefined") {
         localStorage.setItem("yochiLoggedIn", "true");
       }
+      router.push("/");
     } catch (err) {
       console.error("handleLogin error:", err);
       setStatus(getFriendlyErrorMessage("login", err));
@@ -99,10 +124,10 @@ export default function LoginPage() {
         throw insertError;
       }
 
-      setStatus("初回登録が完了しました。続けてログインボタンからアクセスできます。");
+      setStatus("初回登録が完了しました。次回からログインできます。");
     } catch (err) {
       console.error("handleRegister error:", err);
-      setStatus("登録処理に失敗しました。時間をおいて再度お試しください。");
+      setStatus(getFriendlyErrorMessage("register", err));
     } finally {
       setIsLoading(false);
       setLoadingAction(null);
