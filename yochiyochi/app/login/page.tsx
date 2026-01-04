@@ -69,6 +69,7 @@ export default function LoginPage() {
         setStatus("会員IDまたはパスワードが間違っています。");
         if (typeof window !== "undefined") {
           localStorage.removeItem("yochiLoggedIn");
+          localStorage.removeItem("yochiMemberId");
         }
         return;
       }
@@ -79,6 +80,7 @@ export default function LoginPage() {
       setStatus(`ログインしました。（最終登録: ${lastRegistered}）`);
       if (typeof window !== "undefined") {
         localStorage.setItem("yochiLoggedIn", "true");
+        localStorage.setItem("yochiMemberId", memberId);
       }
       router.push("/");
     } catch (err) {

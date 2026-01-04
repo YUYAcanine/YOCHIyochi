@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Button from "@/components/Button";
 
 type Answer = {
@@ -9,18 +10,32 @@ type Answer = {
   child_name: string;
   age_month: number;
   no_eat: string;
-  createdAt: string;
+  note: string | null;
+  created_at: string;
 };
 
 export default function Page5() {
+  const router = useRouter();
   const [data, setData] = useState<Answer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/answers", { cache: "no-store" });
+        if (typeof window === "undefined") return;
+        const loggedIn = localStorage.getItem("yochiLoggedIn") === "true";
+        const storedMemberId = localStorage.getItem("yochiMemberId");
+        if (!loggedIn || !storedMemberId) {
+          router.replace("/login");
+          return;
+        }
+        setAuthChecked(true);
+        const res = await fetch(
+          `/api/answers?member_id=${encodeURIComponent(storedMemberId)}`,
+          { cache: "no-store" }
+        );
         if (!res.ok) throw new Error("fetch failed");
         const json = await res.json();
         // API が { items: rows } を返す場合は json.items に合わせる
@@ -31,7 +46,11 @@ export default function Page5() {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [router]);
+
+  if (!authChecked) {
+    return null;
+  }
 
   return (
     <main className="min-h-screen bg-gray-50 p-6">
@@ -49,6 +68,7 @@ export default function Page5() {
                 <th className="border p-2">園児の名前</th>
                 <th className="border p-2">月齢</th>
                 <th className="border p-2">食べられない食品</th>
+                <th className="border p-2">備考</th>
                 <th className="border p-2">登録日時</th>
               </tr>
             </thead>
@@ -59,14 +79,15 @@ export default function Page5() {
                   <td className="border p-2">{row.child_name}</td>
                   <td className="border p-2">{row.age_month}</td>
                   <td className="border p-2">{row.no_eat}</td>
+                  <td className="border p-2">{row.note || "-"}</td>
                   <td className="border p-2">
-                    {new Date(row.createdAt).toLocaleString()}
+                    {new Date(row.created_at).toLocaleString()}
                   </td>
                 </tr>
               ))}
               {data.length === 0 && (
                 <tr>
-                  <td className="border p-2" colSpan={5}>
+                  <td className="border p-2" colSpan={6}>
                     データがありません
                   </td>
                 </tr>

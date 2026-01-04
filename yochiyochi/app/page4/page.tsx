@@ -1,20 +1,41 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Button from "@/components/Button";
 
 export default function Page4() {
+  const router = useRouter();
   const [childName, setChildName] = useState("");
   const [ageMonth, setAgeMonth] = useState("");
   const [noEat, setNoEat] = useState("");
+  const [note, setNote] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [memberId, setMemberId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const loggedIn = localStorage.getItem("yochiLoggedIn") === "true";
+    const storedMemberId = localStorage.getItem("yochiMemberId");
+    if (!loggedIn || !storedMemberId) {
+      router.replace("/login");
+      return;
+    }
+    setMemberId(storedMemberId);
+    setAuthChecked(true);
+  }, [router]);
+
+  if (!authChecked) {
+    return null;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMsg(null);
 
-    if (!childName || !ageMonth || !noEat) {
+    if (!childName || !ageMonth || !noEat || !memberId) {
       setMsg("すべての項目を入力してください。");
       return;
     }
@@ -28,6 +49,8 @@ export default function Page4() {
           child_name: childName,
           age_month: Number(ageMonth),
           no_eat: noEat,
+          note,
+          member_id: memberId,
         }),
       });
 
@@ -37,6 +60,7 @@ export default function Page4() {
       setChildName("");
       setAgeMonth("");
       setNoEat("");
+      setNote("");
     } catch (err) {
       setMsg("保存に失敗しました");
     } finally {
@@ -78,18 +102,24 @@ export default function Page4() {
 
         <label className="block">
           食べられない食品
-          <select
+          <input
+            type="text"
             className="mt-1 block w-full border rounded px-3 py-2"
             value={noEat}
             onChange={(e) => setNoEat(e.target.value)}
-          >
-            <option value="">選択してください</option>
-            <option value="卵">卵</option>
-            <option value="牛乳">牛乳</option>
-            <option value="小麦">小麦</option>
-            <option value="落花生">落花生</option>
-            <option value="そば">そば</option>
-          </select>
+            placeholder="例：卵、牛乳"
+          />
+        </label>
+
+        <label className="block">
+          備考（食べられない理由など）
+          <textarea
+            className="mt-1 block w-full border rounded px-3 py-2"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="例：アレルギーのため"
+            rows={3}
+          />
         </label>
 
         <button

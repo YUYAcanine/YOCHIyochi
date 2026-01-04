@@ -73,6 +73,21 @@ export default function Page1() {
         >
           チェックをはじめる
         </Link>
+        {isLoggedIn && (
+          <Link
+            href="/page4"
+            className="btn-secondary fade-up-3"
+            onClick={() =>
+              event({
+                action: "no_eat_register_click",
+                category: "button",
+                label: "page1 no_eat",
+              })
+            }
+          >
+            食べられない食品を登録する
+          </Link>
+        )}
       </div>
 
 
