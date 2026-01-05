@@ -10,11 +10,41 @@ import type { PhaseKey } from "@/types/food";
 
 type Variant = "forbidden" | "ok" | "none";
 
+type MenuInfo = Partial<Record<PhaseKey, string>>;
+
+type FoodItem = MenuInfo & {
+  food_name: string;
+};
+
+type FoodRow = {
+  food_id: number;
+  food_name: string;
+  cook_id: number | null;
+};
+
+type CookRow = {
+  cook_id: number;
+  description_phase1?: string | null;
+  description_phase2?: string | null;
+  description_phase3?: string | null;
+  description_phase4?: string | null;
+  description_phase5?: string | null;
+};
+
+type FallbackRow = {
+  food_name: string;
+  description_phase1?: string | null;
+  description_phase2?: string | null;
+  description_phase3?: string | null;
+  description_phase4?: string | null;
+  description_phase5?: string | null;
+};
+
 export default function Page6() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [selectedFood, setSelectedFood] = useState<any>(null);
-  const [menuMap, setMenuMap] = useState<Record<string, any>>({});
+  const [searchResults, setSearchResults] = useState<FoodItem[]>([]);
+  const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null);
+  const [menuMap, setMenuMap] = useState<Record<string, MenuInfo>>({});
   const [foodIdMap, setFoodIdMap] = useState<Record<string, number>>({});
   const [accidentInfo, setAccidentInfo] = useState<string>("");
   const [showAccidentInfo, setShowAccidentInfo] = useState(false);
@@ -33,18 +63,20 @@ export default function Page6() {
 
     async function fetchMenuData() {
       try {
-        const { data: foodData, error: foodError } = await supabase
+        const { data: foodDataRaw, error: foodError } = await supabase
           .from("yochiyochi_foodlist")
           .select("food_id, food_name, cook_id");
+        const foodData = (foodDataRaw ?? []) as FoodRow[];
 
         if (foodError) {
-          const { data: fallbackData, error: fallbackError } = await supabase
+          const { data: fallbackDataRaw, error: fallbackError } = await supabase
             .from("NagasakiDemoData")
             .select("*");
+          const fallbackData = (fallbackDataRaw ?? []) as FallbackRow[];
 
           if (fallbackError || !fallbackData) return;
 
-          const map: Record<string, any> = {};
+          const map: Record<string, MenuInfo> = {};
           for (const row of fallbackData) {
             const key = canon(row.food_name);
             if (key) {
@@ -63,25 +95,28 @@ export default function Page6() {
 
         if (!foodData || foodData.length === 0) return;
 
-        const { data: cookData, error: cookError } = await supabase
+        const { data: cookDataRaw, error: cookError } = await supabase
           .from("yochiyochi_cooklist")
           .select(
             "cook_id, description_phase1, description_phase2, description_phase3, description_phase4, description_phase5"
           );
+        const cookData = (cookDataRaw ?? []) as CookRow[];
 
         if (cookError || !cookData || cookData.length === 0) return;
 
-        const cookMap = new Map();
+        const cookMap = new Map<number, CookRow>();
         for (const cook of cookData) {
+          if (cook.cook_id == null) continue;
           cookMap.set(cook.cook_id, cook);
         }
 
-        const map: Record<string, any> = {};
+        const map: Record<string, MenuInfo> = {};
         const foodIdMap: Record<string, number> = {};
 
         for (const food of foodData) {
           const key = canon(food.food_name);
           if (!key) continue;
+          if (food.cook_id == null) continue;
 
           foodIdMap[key] = food.food_id;
 
@@ -116,7 +151,7 @@ export default function Page6() {
     }
 
     const query = canon(searchQuery.trim());
-    const results: any[] = [];
+    const results: FoodItem[] = [];
 
     for (const [key, value] of Object.entries(menuMap)) {
       if (key.includes(query) || query.includes(key)) {
@@ -132,7 +167,7 @@ export default function Page6() {
   };
 
   // 食材選択
-  const handleSelectFood = (food: any) => {
+  const handleSelectFood = (food: FoodItem) => {
     setSelectedFood(food);
     setAccidentInfo("");
     setShowAccidentInfo(false);
@@ -177,7 +212,7 @@ export default function Page6() {
   };
 
   // 調理法の分類
-  const classify = (food: any): { variant: Variant; text: string } => {
+  const classify = (food: FoodItem | null): { variant: Variant; text: string } => {
     const val = food?.[phase]?.trim();
     if (!val) return { variant: "none", text: "" };
     if (val === "食べさせてはいけません。")

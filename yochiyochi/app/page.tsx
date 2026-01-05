@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { event } from "@/lib/gtag"; // GAイベント送信用
 
 export default function Page1() {
+  const router = useRouter();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
@@ -31,21 +33,41 @@ export default function Page1() {
     };
   }, []);
 
+  const handleLogout = () => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    localStorage.setItem("yochiLoggedIn", "false");
+    setIsLoggedIn(false);
+    router.replace("/");
+  };
+
   return (
     <main className="relative min-h-screen bg-[#F0E4D8] grid grid-rows-[1fr_auto_1fr] justify-items-center px-6">
-      <Link
-        href="/login"
-        className="btn-secondary fade-up-2 mypage-link"
-        onClick={() =>
-          event({
-            action: "login_click",
-            category: "button",
-            label: "page1 login",
-          })
-        }
-      >
+      <div className="top-actions">
+        <Link
+          href="/login"
+          className="btn-secondary fade-up-2"
+          onClick={() =>
+            event({
+              action: "login_click",
+              category: "button",
+              label: "page1 login",
+            })
+          }
+        >
         マイページ
-      </Link>
+        </Link>
+        {isLoggedIn && (
+          <button
+            type="button"
+            className="btn-secondary fade-up-2"
+            onClick={handleLogout}
+          >
+            ログアウト
+          </button>
+        )}
+      </div>
       {/* 上段：ロゴ（1.2倍大きく） */}
       <div className="row-start-1 row-end-2 self-end mb-6 swoosh-in select-none">
         <Image
@@ -174,17 +196,21 @@ export default function Page1() {
         .btn-secondary:active {
           transform: translateY(1px);
         }
-        .mypage-link {
+        .top-actions {
           position: absolute;
           top: 2rem;
           right: clamp(1rem, 5vw, 3rem);
           z-index: 10;
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
         }
         @media (max-width: 640px) {
-          .mypage-link {
+          .top-actions {
             top: 1rem;
             right: 1rem;
-            padding: 0.75rem 1.2rem;
+            flex-direction: column;
+            align-items: flex-end;
           }
         }
 
