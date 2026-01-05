@@ -62,7 +62,7 @@ export default function Page4() {
       setAgeMonth("");
       setNoEat("");
       setNote("");
-    } catch (err) {
+    } catch {
       setMsg("保存に失敗しました");
     } finally {
       setLoading(false);
