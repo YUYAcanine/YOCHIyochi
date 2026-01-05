@@ -45,19 +45,21 @@ export default function Page1() {
   return (
     <main className="relative min-h-screen bg-[#F0E4D8] grid grid-rows-[1fr_auto_1fr] justify-items-center px-6">
       <div className="top-actions">
-        <Link
-          href="/Login"
-          className="btn-secondary fade-up-2"
-          onClick={() =>
-            event({
-              action: "login_click",
-              category: "button",
-              label: "page1 login",
-            })
-          }
-        >
-        マイページ
-        </Link>
+        {!isLoggedIn && (
+          <Link
+            href="/Login"
+            className="btn-secondary fade-up-2"
+            onClick={() =>
+              event({
+                action: "login_click",
+                category: "button",
+                label: "page1 login",
+              })
+            }
+          >
+            マイページ
+          </Link>
+        )}
         {isLoggedIn && (
           <button
             type="button"

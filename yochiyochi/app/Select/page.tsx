@@ -180,7 +180,7 @@ export default function Page2() {
 
   /* 検索画面へ */
   const handleGoSearch = useCallback(() => {
-    router.push("/page6");
+    router.push("/Search");
   }, [router]);
 
   /* input[type=file] 共通ハンドラ */

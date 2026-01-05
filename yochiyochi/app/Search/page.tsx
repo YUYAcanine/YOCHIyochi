@@ -234,7 +234,7 @@ export default function Page6() {
   return (
     <main className="min-h-screen bg-[#FAF8F6] text-[#4D3F36] relative flex flex-col">
       <Ribbon
-        href="/page2"
+        href="/"
         logoSrc="/yoyochi.jpg"
         alt="よちヨチ ロゴ"
         heightClass="h-24"
