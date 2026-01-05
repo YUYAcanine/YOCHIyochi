@@ -9,6 +9,7 @@ import { event } from "@/lib/gtag"; // GAイベント送信用
 export default function Page1() {
   const router = useRouter();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [memberId, setMemberId] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -18,10 +19,11 @@ export default function Page1() {
     const syncLoginState = () => {
       const stored = localStorage.getItem("yochiLoggedIn") === "true";
       setIsLoggedIn(stored);
+      setMemberId(localStorage.getItem("yochiMemberId"));
     };
 
     const handleStorage = (event: StorageEvent) => {
-      if (event.key === "yochiLoggedIn") {
+      if (event.key === "yochiLoggedIn" || event.key === "yochiMemberId") {
         syncLoginState();
       }
     };
@@ -38,13 +40,15 @@ export default function Page1() {
       return;
     }
     localStorage.setItem("yochiLoggedIn", "false");
+    localStorage.removeItem("yochiMemberId");
     setIsLoggedIn(false);
+    setMemberId(null);
     router.replace("/");
   };
 
   return (
     <main className="relative min-h-screen bg-[#F0E4D8] grid grid-rows-[1fr_auto_1fr] justify-items-center px-6">
-      <div className="top-actions">
+      <div className={`top-actions ${isLoggedIn ? "top-actions-logged" : ""}`}>
         {!isLoggedIn && (
           <Link
             href="/Login"
@@ -61,13 +65,20 @@ export default function Page1() {
           </Link>
         )}
         {isLoggedIn && (
-          <button
-            type="button"
-            className="btn-secondary fade-up-2"
-            onClick={handleLogout}
-          >
-            ログアウト
-          </button>
+          <div className="member-actions">
+            {memberId && (
+              <span className="member-label fade-up-2">
+                {memberId}さんのページ
+              </span>
+            )}
+            <button
+              type="button"
+              className="btn-secondary fade-up-2"
+              onClick={handleLogout}
+            >
+              ログアウト
+            </button>
+          </div>
         )}
       </div>
       {/* 上段：ロゴ（1.2倍大きく） */}
@@ -206,6 +217,24 @@ export default function Page1() {
           display: flex;
           align-items: center;
           gap: 0.75rem;
+        }
+        .top-actions-logged {
+          align-items: flex-end;
+        }
+        .member-actions {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 0.35rem;
+        }
+        .member-label {
+          font-size: 0.95rem;
+          font-weight: 700;
+          color: #6b5a4e;
+          background: #f5ede6;
+          border: 1px solid #d6c2b4;
+          padding: 0.3rem 0.6rem;
+          border-radius: 0.75rem;
         }
         @media (max-width: 640px) {
           .top-actions {

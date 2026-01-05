@@ -78,6 +78,13 @@ export default function Page4() {
         heightClass="h-24"
         bgClass="bg-[#F0E4D8]"
         logoClassName="h-20 w-auto object-contain"
+        rightContent={
+          memberId ? (
+            <span className="text-sm font-semibold text-[#6B5A4E]">
+              {memberId}さんのページ
+            </span>
+          ) : null
+        }
       />
       <div className="pt-24 px-6 pb-10 flex flex-col items-center">
         {/* フォーム */}

@@ -51,10 +51,13 @@ export default function Page6() {
   const [phase, setPhase] = useState<PhaseKey>("phase1");
   const [isClient, setIsClient] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [memberId, setMemberId] = useState<string | null>(null);
 
   // クライアントサイドでのみ実行
   useEffect(() => {
     setIsClient(true);
+    const storedMemberId = localStorage.getItem("yochiMemberId");
+    setMemberId(storedMemberId);
   }, []);
 
   // データを取得
@@ -240,6 +243,13 @@ export default function Page6() {
         heightClass="h-24"
         bgClass="bg-[#F0E4D8]"
         logoClassName="h-20 w-auto object-contain"
+        rightContent={
+          memberId ? (
+            <span className="text-sm font-semibold text-[#6B5A4E]">
+              {memberId}さんのページ
+            </span>
+          ) : null
+        }
       />
 
       <div className="flex-grow pt-24 px-4">

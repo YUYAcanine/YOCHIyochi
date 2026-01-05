@@ -3,7 +3,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ComponentProps } from "react";
+import { ComponentProps, ReactNode } from "react";
 
 type Props = {
   /** クリック時に戻るリンク先（既定: "/"） */
@@ -28,6 +28,8 @@ type Props = {
   logoClassName?: string;
   /** Link に渡す props（prefetch など） */
   linkProps?: Partial<ComponentProps<typeof Link>>;
+  /** 右側に表示する任意コンテンツ */
+  rightContent?: ReactNode;
 };
 
 export default function Ribbon({
@@ -41,10 +43,11 @@ export default function Ribbon({
   logoHeight = 90,
   logoClassName = "h-20 w-auto object-contain",
   linkProps,
+  rightContent,
 }: Props) {
   return (
     <div
-      className={`fixed top-0 left-0 w-full ${heightClass} ${bgClass} flex items-center pl-2 z-50 shadow-md ${containerClassName}`}
+      className={`fixed top-0 left-0 w-full ${heightClass} ${bgClass} flex items-center justify-between px-3 z-50 shadow-md ${containerClassName}`}
     >
       <Link href={href} className="flex items-center" {...linkProps}>
         <Image
@@ -56,6 +59,7 @@ export default function Ribbon({
           priority
         />
       </Link>
+      {rightContent && <div className="pr-2">{rightContent}</div>}
     </div>
   );
 }

@@ -21,6 +21,7 @@ export default function Page5() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
+  const [memberId, setMemberId] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -32,6 +33,7 @@ export default function Page5() {
           router.replace("/login");
           return;
         }
+        setMemberId(storedMemberId);
         setAuthChecked(true);
         const res = await fetch(
           `/api/answers?member_id=${encodeURIComponent(storedMemberId)}`,
@@ -62,6 +64,13 @@ export default function Page5() {
         heightClass="h-24"
         bgClass="bg-[#F0E4D8]"
         logoClassName="h-20 w-auto object-contain"
+        rightContent={
+          memberId ? (
+            <span className="text-sm font-semibold text-[#6B5A4E]">
+              {memberId}さんのページ
+            </span>
+          ) : null
+        }
       />
       <div className="pt-24 px-6 pb-10">
         <h1 className="text-xl font-bold mb-4">登録内容の確認</h1>

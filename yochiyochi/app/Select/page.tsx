@@ -8,7 +8,7 @@
  * - 選択中は下部ドロワーに判定結果/事故情報を表示
  */
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import Ribbon from "@/components/Ribbon";
@@ -71,6 +71,14 @@ export default function Page2() {
 
   // 現在のフェーズ
   const { phase } = useChecklist();
+
+  const [memberId, setMemberId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const storedMemberId = localStorage.getItem("yochiMemberId");
+    setMemberId(storedMemberId);
+  }, []);
 
   // 画像と選択テキスト
   const [imgSrc, setImgSrc] = useState<string | null>(null);
@@ -260,6 +268,13 @@ export default function Page2() {
           drawerOpen ? "-translate-y-[var(--ribbon-shift)]" : "translate-y-0"
         }`}
         logoClassName="h-20 w-auto object-contain"
+        rightContent={
+          memberId ? (
+            <span className="text-sm font-semibold text-[#6B5A4E]">
+              {memberId}さんのページ
+            </span>
+          ) : null
+        }
       />
 
       <div className="flex-grow pt-24">
