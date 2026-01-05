@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
@@ -46,7 +46,7 @@ export default function Page1() {
     <main className="relative min-h-screen bg-[#F0E4D8] grid grid-rows-[1fr_auto_1fr] justify-items-center px-6">
       <div className="top-actions">
         <Link
-          href="/login"
+          href="/Login"
           className="btn-secondary fade-up-2"
           onClick={() =>
             event({
@@ -83,7 +83,7 @@ export default function Page1() {
       {/* 中段：メインボタン（中央） */}
       <div className="row-start-2 row-end-3 place-self-center flex flex-col items-center gap-4">
         <Link
-          href="/page2"
+          href="/Select"
           className="btn-primary fade-up-1"
           onClick={() =>
             event({
@@ -97,7 +97,7 @@ export default function Page1() {
         </Link>
         {isLoggedIn && (
           <Link
-            href="/page4"
+            href="/Register"
             className="btn-secondary fade-up-3"
             onClick={() =>
               event({

@@ -136,7 +136,7 @@ export default function Page4() {
       {/* 下部ボタン */}
       <div className="flex gap-4 mt-6 mb-4">
         <Button href="/" variant="gray">ホームに戻る</Button>
-        <Button href="/page5" variant="purple">登録内容を確認する</Button>
+        <Button href="/Table" variant="purple">登録内容を確認する</Button>
       </div>
     </main>
   );
