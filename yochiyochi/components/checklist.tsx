@@ -1,4 +1,4 @@
-// components/checklist.tsx
+﻿// components/checklist.tsx
 "use client";
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
@@ -24,23 +24,46 @@ const PHASE_ITEMS: { key: PhaseKey; label: string; sub?: string }[] = [
 
 /* ---------- Storage helper ---------- */
 const STORAGE_KEY = "checklistPhase";
+const STORAGE_CHILD_MODE_KEY = "checklistChildMode";
+
 function safeGetPhase(): PhaseKey {
   if (typeof window === "undefined") return "phase1";
   const raw = localStorage.getItem(STORAGE_KEY);
-  if (raw === "phase2" || raw === "phase3" || raw === "phase4" || raw === "phase5") return raw as PhaseKey;
+  if (raw === "phase2" || raw === "phase3" || raw === "phase4" || raw === "phase5") return raw;
   return "phase1";
 }
 function safeSetPhase(p: PhaseKey) {
   if (typeof window === "undefined") return;
   localStorage.setItem(STORAGE_KEY, p);
 }
+function safeGetChildMode(): boolean {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem(STORAGE_CHILD_MODE_KEY) === "true";
+}
+function safeSetChildMode(enabled: boolean) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(STORAGE_CHILD_MODE_KEY, enabled ? "true" : "false");
+}
 
 /* ---------- Context ---------- */
+type ChildItem = {
+  id: number;
+  child_name: string;
+  age_month: number;
+  no_eat: string;
+  note: string | null;
+};
+
 type ChecklistContextType = {
   phase: PhaseKey;
   setPhase: (p: PhaseKey) => void;
   open: boolean;
   setOpen: (o: boolean) => void;
+  childMode: boolean;
+  setChildMode: (enabled: boolean) => void;
+  children: ChildItem[];
+  memberId: string | null;
+  childrenLoading: boolean;
 };
 
 const ChecklistContext = createContext<ChecklistContextType | undefined>(undefined);
@@ -49,6 +72,10 @@ const ChecklistContext = createContext<ChecklistContextType | undefined>(undefin
 export function ChecklistProvider({ children }: { children: React.ReactNode }) {
   const [phase, setPhaseState] = useState<PhaseKey>("phase1"); // SSR初期値
   const [open, setOpen] = useState<boolean>(false);
+  const [memberId, setMemberId] = useState<string | null>(null);
+  const [childrenItems, setChildrenItems] = useState<ChildItem[]>([]);
+  const [childMode, setChildModeState] = useState<boolean>(false);
+  const [childrenLoading, setChildrenLoading] = useState(false);
 
   useEffect(() => {
     setPhaseState(safeGetPhase());
@@ -59,15 +86,89 @@ export function ChecklistProvider({ children }: { children: React.ReactNode }) {
     safeSetPhase(p);
   };
 
+  const setChildMode = (enabled: boolean) => {
+    setChildModeState(enabled);
+    safeSetChildMode(enabled);
+  };
+
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (e.key === STORAGE_KEY) setPhaseState(safeGetPhase());
+      if (e.key === STORAGE_CHILD_MODE_KEY) setChildModeState(safeGetChildMode());
+      if (e.key === "yochiLoggedIn" || e.key === "yochiMemberId") {
+        const loggedIn = localStorage.getItem("yochiLoggedIn") === "true";
+        const storedMemberId = localStorage.getItem("yochiMemberId");
+        setMemberId(loggedIn ? storedMemberId : null);
+        if (!loggedIn) {
+          setChildModeState(false);
+          safeSetChildMode(false);
+        }
+      }
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  const value = useMemo(() => ({ phase, setPhase, open, setOpen }), [phase, open]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const loggedIn = localStorage.getItem("yochiLoggedIn") === "true";
+    const storedMemberId = localStorage.getItem("yochiMemberId");
+    setMemberId(loggedIn ? storedMemberId : null);
+    setChildModeState(safeGetChildMode());
+    if (!loggedIn) {
+      setChildModeState(false);
+      safeSetChildMode(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadChildren() {
+      if (!memberId) {
+        setChildrenItems([]);
+        setChildrenLoading(false);
+        return;
+      }
+      setChildrenLoading(true);
+      try {
+        const res = await fetch(`/api/answers?member_id=${encodeURIComponent(memberId)}`, {
+          cache: "no-store",
+        });
+        if (!res.ok) throw new Error("fetch failed");
+        const json = await res.json();
+        const items: ChildItem[] = Array.isArray(json) ? json : json.items ?? [];
+        if (cancelled) return;
+        setChildrenItems(items);
+      } catch (e) {
+        if (!cancelled) {
+          setChildrenItems([]);
+        }
+      } finally {
+        if (!cancelled) setChildrenLoading(false);
+      }
+    }
+
+    loadChildren();
+    return () => {
+      cancelled = true;
+    };
+  }, [memberId]);
+
+  const value = useMemo(
+    () => ({
+      phase,
+      setPhase,
+      open,
+      setOpen,
+      childMode,
+      setChildMode,
+      children: childrenItems,
+      memberId,
+      childrenLoading,
+    }),
+    [phase, open, childMode, childrenItems, memberId, childrenLoading]
+  );
   return <ChecklistContext.Provider value={value}>{children}</ChecklistContext.Provider>;
 }
 
@@ -112,7 +213,8 @@ export function ChecklistButton() {
 
 /* ---------- 右スライドドロワー（選択しても閉じない） ---------- */
 export function ChecklistPanel() {
-  const { phase, setPhase, open, setOpen } = useChecklist();
+  const { phase, setPhase, open, setOpen, childMode, setChildMode, children, memberId, childrenLoading } =
+    useChecklist();
   const heading = "時期を選択"; // ← 現在の選択表示をなくす
 
   const onBackdropClick: React.MouseEventHandler<HTMLDivElement> = (e) => {
@@ -179,9 +281,54 @@ export function ChecklistPanel() {
               </label>
             );
           })}
+
+          {memberId && (
+            <div className="mt-6 pt-4 border-t border-[#E5D9CE]">
+              <h4 className={`text-base font-semibold ${TXT_HEAD}`}>表示モード</h4>
+              <p className="text-xs text-[#6B5A4E] mt-1">
+                園児モードでは登録済みの食べられない食品のみ緑で表示します。
+              </p>
+
+              {childrenLoading && (
+                <p className="text-xs text-[#6B5A4E] mt-3">読み込み中...</p>
+              )}
+
+              {!childrenLoading && children.length === 0 && (
+                <p className="text-xs text-[#6B5A4E] mt-3">園児の登録がありません。</p>
+              )}
+
+              <div className="mt-3 space-y-2">
+                <label
+                  className="flex items-center gap-3 rounded-xl p-3 cursor-pointer border bg-[#F0E4D8] border-[#E5D9CE] hover:brightness-95"
+                  onClick={() => setChildMode(false)}
+                >
+                  <input
+                    type="radio"
+                    name="display-mode"
+                    checked={!childMode}
+                    onChange={() => setChildMode(false)}
+                    className="accent-[#5C3A2E]"
+                  />
+                  <span className={`font-medium ${TXT_HEAD}`}>乳児期別表示</span>
+                </label>
+                <label
+                  className="flex items-center gap-3 rounded-xl p-3 cursor-pointer border bg-[#E6F4EA] border-[#9FD3AE] hover:brightness-95"
+                  onClick={() => setChildMode(true)}
+                >
+                  <input
+                    type="radio"
+                    name="display-mode"
+                    checked={childMode}
+                    onChange={() => setChildMode(true)}
+                    className="accent-[#2F7D4C]"
+                  />
+                  <span className={`font-medium ${TXT_HEAD}`}>園児モード</span>
+                </label>
+              </div>
+            </div>
+          )}
         </div>
       </aside>
     </>
   );
 }
-

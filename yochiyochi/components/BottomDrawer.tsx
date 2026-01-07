@@ -4,7 +4,7 @@ import * as React from "react";
 import PhaseDescriptionBox from "@/components/PhaseDescriptionBox";
 import type { PhaseKey } from "@/types/food";
 
-type Variant = "forbidden" | "ok" | "none";
+type Variant = "forbidden" | "ok" | "none" | "child";
 
 type Props = {
   openText: string;

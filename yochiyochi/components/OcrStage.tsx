@@ -25,7 +25,7 @@ type OcrImageProps = ComponentProps<typeof OcrImage>;
 type Box = OcrImageProps["boxes"][number];
 type ScaleInfo = OcrImageProps["scale"];
 
-type Variant = "forbidden" | "ok" | "none";
+type Variant = "forbidden" | "ok" | "none" | "child";
 
 type Props = {
   imgSrc: string;

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 /**
  * このページの役割
@@ -36,7 +36,7 @@ type OcrImageProps = ComponentProps<typeof OcrImage>;
 type Box = OcrImageProps["boxes"][number];
 type ScaleInfo = OcrImageProps["scale"];
 
-type Variant = "forbidden" | "ok" | "none";
+type Variant = "forbidden" | "ok" | "none" | "child";
 
 type MenuInfo = {
   phase1?: string;
@@ -70,7 +70,7 @@ export default function Page2() {
   const router = useRouter();
 
   // 現在のフェーズ
-  const { phase } = useChecklist();
+  const { phase, childMode, children } = useChecklist();
 
   const [memberId, setMemberId] = useState<string | null>(null);
 
@@ -93,6 +93,46 @@ export default function Page2() {
     foodIdMap: Record<string, number>;
   };
 
+  const childFoodMap = useMemo(() => {
+    const map = new Map<string, Array<{ name: string; note: string | null }>>();
+    for (const child of children) {
+      const items = (child.no_eat ?? "")
+        .split(/[,\s/\u3001\u30fb\uFF0C\uFF0F]+/)
+        .map((item) => canon(item))
+        .filter(Boolean);
+      const uniqueItems = Array.from(new Set(items));
+      for (const item of uniqueItems) {
+        const list = map.get(item) ?? [];
+        list.push({ name: child.child_name, note: child.note ?? null });
+        map.set(item, list);
+      }
+    }
+    return map;
+  }, [children]);
+
+  const getChildEntries = useCallback(
+    (raw?: string) => {
+      const key = canon(raw);
+      if (!key) return null;
+      const list = childFoodMap.get(key);
+      return list && list.length > 0 ? list : null;
+    },
+    [childFoodMap]
+  );
+
+  const formatChildNotes = useCallback((entries: Array<{ name: string; note: string | null }>) => {
+    const childLabel = "食べさせてはいけない園児";
+    const noteLabel = "備考";
+    const names = entries.map((entry) => entry.name).filter(Boolean).join("、");
+    const notes = entries
+      .map((entry) => (entry.note ? `${entry.name}: ${entry.note}` : ""))
+      .filter(Boolean);
+    const lines = [];
+    if (names) lines.push(`${childLabel}: ${names}`);
+    if (notes.length > 0) lines.push(`${noteLabel}: ${notes.join(" / ")}`);
+    return lines.join("\n");
+  }, []);
+
   // 事故情報
   const { accidentInfo, showAccidentInfo, fetchByFoodId, reset: resetAccident } =
     useAccidentInfo();
@@ -112,18 +152,29 @@ export default function Page2() {
       const key = canon(raw);
       if (!key) return { variant: "none", text: "" };
 
+      const childEntries = getChildEntries(raw);
+      const childText = childEntries ? formatChildNotes(childEntries) : "";
       const info = menuMap[key];
       const phaseKey = toMenuPhaseKey(phase);
       const val = info?.[phaseKey]?.trim();
+      const forbiddenText = "食べさせてはいけません。";
+
+      if (childMode) {
+        if (!childEntries) return { variant: "none", text: "" };
+        const text = [val, childText].filter(Boolean).join("\n");
+        return { variant: "child", text: text || childText };
+      }
 
       if (!val) return { variant: "none", text: "" };
 
-      if (val === "食べさせてはいけません。") {
-        return { variant: "forbidden", text: "食べさせてはいけません" };
+      const merged = childText ? `${val}\n${childText}` : val;
+
+      if (val === forbiddenText || val === "食べさせてはいけません") {
+        return { variant: "forbidden", text: merged };
       }
-      return { variant: "ok", text: val };
+      return { variant: "ok", text: merged };
     },
-    [menuMap, phase]
+    [menuMap, phase, childMode, getChildEntries, formatChildNotes]
   );
 
   // none は表示しない（重要なboxだけ見せる）

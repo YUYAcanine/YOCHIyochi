@@ -6,7 +6,7 @@ import type { PhaseKey } from "@/types/food";
 type Vertex = { x: number; y: number };
 type OCRBox = { description: string; boundingPoly: { vertices: Vertex[] } };
 
-type Variant = "forbidden" | "ok" | "none";
+type Variant = "forbidden" | "ok" | "none" | "child";
 
 type ScaleObj = { scale: number; offsetX?: number; offsetY?: number };
 
@@ -72,6 +72,8 @@ export default function OcrImage({
         return "border-red-500 ";
       case "ok":
         return "border-yellow-500 ";
+      case "child":
+        return "border-green-500 ";
       default:
         return "border-transparent";
     }
