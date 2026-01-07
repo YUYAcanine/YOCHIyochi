@@ -21,9 +21,11 @@ type Variant = "forbidden" | "ok" | "none" | "child";
 
 type Props = {
   selectedText: string;
-  description: string;
+  cookDescription: string;
+  childDescription: string;
   phase: PhaseKey;
   variant: Variant;
+  cookVariant: Variant;
 
   onClose: () => void;
   onShowAccident: () => void;
@@ -34,9 +36,11 @@ type Props = {
 
 export default function OcrBottomDrawer({
   selectedText,
-  description,
+  cookDescription,
+  childDescription,
   phase,
   variant,
+  cookVariant,
   onClose,
   onShowAccident,
   accidentInfo,
@@ -45,9 +49,11 @@ export default function OcrBottomDrawer({
   return (
     <BottomDrawer
       openText={selectedText}
-      description={description}
+      cookDescription={cookDescription}
+      childDescription={childDescription}
       phase={phase}
       variant={variant}
+      cookVariant={cookVariant}
       onClose={onClose}
       onShowAccidentInfo={onShowAccident}
       accidentInfo={accidentInfo}

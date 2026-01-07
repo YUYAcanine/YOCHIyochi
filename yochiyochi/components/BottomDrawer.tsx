@@ -1,4 +1,4 @@
-// components/BottomDrawer.tsx
+﻿// components/BottomDrawer.tsx
 "use client";
 import * as React from "react";
 import PhaseDescriptionBox from "@/components/PhaseDescriptionBox";
@@ -8,9 +8,11 @@ type Variant = "forbidden" | "ok" | "none" | "child";
 
 type Props = {
   openText: string;
-  description: string;
+  cookDescription: string;
+  childDescription: string;
   phase: PhaseKey;
   variant: Variant;
+  cookVariant: Variant;
   onClose: () => void;
   onShowAccidentInfo?: () => void;
   accidentInfo?: string;
@@ -19,15 +21,17 @@ type Props = {
 
 export default function BottomDrawer({
   openText,
-  description,
+  cookDescription,
+  childDescription,
   phase,
   variant,
+  cookVariant,
   onClose,
   onShowAccidentInfo,
   accidentInfo,
   showAccidentInfo,
 }: Props) {
-  const open = !!openText && !!description && variant !== "none";
+  const open = !!openText && (!!cookDescription || !!childDescription) && variant !== "none";
 
   return (
     <aside
@@ -37,10 +41,8 @@ export default function BottomDrawer({
       role="dialog"
       aria-label="説明"
     >
-      {/* ▼ 背景色をうすい彩度低めのピンクに変更 */}
       <div className="mx-auto max-w-3xl rounded-t-2xl border border-zinc-200 bg-[#F8E8E8] shadow-2xl p-4">
         <div className="flex items-center justify-between mb-2">
-          {/* ▼ ラベルを“食材名”に変更 */}
           <div className="text-sm text-zinc-700">
             食材名：<span className="font-medium text-zinc-900">{openText}</span>
           </div>
@@ -55,13 +57,25 @@ export default function BottomDrawer({
           </button>
         </div>
 
-        <PhaseDescriptionBox
-          description={description}
-          phase={phase}
-          variant={variant}
-        />
+        {cookDescription && (
+          <PhaseDescriptionBox
+            description={cookDescription}
+            phase={phase}
+            variant={cookVariant === "none" ? "ok" : cookVariant}
+            title="調理情報"
+          />
+        )}
 
-        {/* 事故情報ボタン */}
+        {childDescription && (
+          <PhaseDescriptionBox
+            description={childDescription}
+            phase={phase}
+            variant="child"
+            title="園児情報"
+            showPhase={false}
+          />
+        )}
+
         {onShowAccidentInfo && !showAccidentInfo && (
           <div className="mt-2 pt-2 border-t border-[#E8DCD0] flex justify-end">
             <button
@@ -75,13 +89,10 @@ export default function BottomDrawer({
           </div>
         )}
 
-        {/* 事故情報表示エリア */}
         {showAccidentInfo && accidentInfo && (
           <div className="mt-4 pt-4 border-t border-[#E8DCD0]">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold text-[#5C3A2E]">
-                事故情報
-              </h3>
+              <h3 className="text-lg font-semibold text-[#5C3A2E]">事故情報</h3>
               <button
                 type="button"
                 onClick={() => onShowAccidentInfo && onShowAccidentInfo()}

@@ -233,6 +233,8 @@ export function ChecklistPanel() {
   const BG_ITEM  = "bg-[#F0E4D8]";     // 選択肢：薄い茶色
   const BG_ACTIVE= "bg-[#E6D6C9]";     // 選択中：少し濃い茶色
   const TXT_HEAD = "text-[#4D3F36]";   // 見出し＆本文の濃い茶
+  const headerDescription =
+    memberId && childMode ? "表示モードを選択してください。" : "乳幼児の段階を選択してください。";
 
   return (
     <>
@@ -250,40 +252,12 @@ export function ChecklistPanel() {
       >
         <div className="p-4 border-b border-[#E5D9CE]">
           <h3 className={`text-lg font-semibold ${TXT_HEAD}`}>{heading}</h3>
-          <p className="text-xs text-[#6B5A4E] mt-1">乳幼児の段階を選択してください。</p>
+          <p className="text-xs text-[#6B5A4E] mt-1">{headerDescription}</p>
         </div>
 
         <div className="p-4 overflow-y-auto h-[calc(100%-3.5rem)]">
-          {PHASE_ITEMS.map((item) => {
-            const active = phase === item.key;
-            return (
-              <label
-                key={item.key}
-                className={`flex items-start gap-3 rounded-xl p-3 mb-2 cursor-pointer border
-                            ${active ? `${BG_ACTIVE} border-[#D4C3B6]` : `${BG_ITEM} border-[#E5D9CE]`}
-                            hover:brightness-95`}
-                onClick={() => onSelect(item.key)}
-              >
-                <input
-                  type="radio"
-                  name="weaning-phase"
-                  value={item.key}
-                  checked={active}
-                  onChange={() => onSelect(item.key)}
-                  className="mt-1 accent-[#5C3A2E]"
-                />
-                <div>
-                  <div className={`font-medium ${TXT_HEAD}`}>
-                    {item.label}
-                    <span className="ml-2 text-xs text-[#6B5A4E]">{item.sub}</span>
-                  </div>
-                </div>
-              </label>
-            );
-          })}
-
           {memberId && (
-            <div className="mt-6 pt-4 border-t border-[#E5D9CE]">
+            <div>
               <h4 className={`text-base font-semibold ${TXT_HEAD}`}>表示モード</h4>
               <p className="text-xs text-[#6B5A4E] mt-1">
                 園児モードでは登録済みの食べられない食品のみ緑で表示します。
@@ -327,8 +301,41 @@ export function ChecklistPanel() {
               </div>
             </div>
           )}
+
+          {(!childMode || !memberId) && (
+            <div className={`${memberId ? "mt-6 pt-4 border-t border-[#E5D9CE]" : ""}`}>
+              {PHASE_ITEMS.map((item) => {
+                const active = phase === item.key;
+                return (
+                  <label
+                    key={item.key}
+                    className={`flex items-start gap-3 rounded-xl p-3 mb-2 cursor-pointer border
+                                ${active ? `${BG_ACTIVE} border-[#D4C3B6]` : `${BG_ITEM} border-[#E5D9CE]`}
+                                hover:brightness-95`}
+                    onClick={() => onSelect(item.key)}
+                  >
+                    <input
+                      type="radio"
+                      name="weaning-phase"
+                      value={item.key}
+                      checked={active}
+                      onChange={() => onSelect(item.key)}
+                      className="mt-1 accent-[#5C3A2E]"
+                    />
+                    <div>
+                      <div className={`font-medium ${TXT_HEAD}`}>
+                        {item.label}
+                        <span className="ml-2 text-xs text-[#6B5A4E]">{item.sub}</span>
+                      </div>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          )}
         </div>
       </aside>
     </>
   );
 }
+

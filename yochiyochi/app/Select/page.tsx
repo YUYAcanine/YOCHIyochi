@@ -38,6 +38,13 @@ type ScaleInfo = OcrImageProps["scale"];
 
 type Variant = "forbidden" | "ok" | "none" | "child";
 
+type Classified = {
+  variant: Variant;
+  cookVariant: Variant;
+  cookText: string;
+  childText: string;
+};
+
 type MenuInfo = {
   phase1?: string;
   phase2?: string;
@@ -148,9 +155,11 @@ export default function Page2() {
 
   /* 判定：選択文字を辞書に照合して forbidden/ok/none を返す */
   const classify = useCallback(
-    (raw?: string): { variant: Variant; text: string } => {
+    (raw?: string): Classified => {
       const key = canon(raw);
-      if (!key) return { variant: "none", text: "" };
+      if (!key) {
+        return { variant: "none", cookVariant: "none", cookText: "", childText: "" };
+      }
 
       const childEntries = getChildEntries(raw);
       const childText = childEntries ? formatChildNotes(childEntries) : "";
@@ -158,21 +167,35 @@ export default function Page2() {
       const phaseKey = toMenuPhaseKey(phase);
       const val = info?.[phaseKey]?.trim();
       const forbiddenText = "食べさせてはいけません。";
+      const cookVariant: Variant =
+        !val
+          ? "none"
+          : val === forbiddenText || val === "食べさせてはいけません"
+            ? "forbidden"
+            : "ok";
 
       if (childMode) {
-        if (!childEntries) return { variant: "none", text: "" };
-        const text = [val, childText].filter(Boolean).join("\n");
-        return { variant: "child", text: text || childText };
+        if (!childEntries) {
+          return { variant: "none", cookVariant: "none", cookText: "", childText: "" };
+        }
+        return {
+          variant: "child",
+          cookVariant,
+          cookText: val ?? "",
+          childText,
+        };
       }
 
-      if (!val) return { variant: "none", text: "" };
-
-      const merged = childText ? `${val}\n${childText}` : val;
-
-      if (val === forbiddenText || val === "食べさせてはいけません") {
-        return { variant: "forbidden", text: merged };
+      if (cookVariant === "none") {
+        return { variant: "none", cookVariant: "none", cookText: "", childText: "" };
       }
-      return { variant: "ok", text: merged };
+
+      return {
+        variant: cookVariant,
+        cookVariant,
+        cookText: val ?? "",
+        childText,
+      };
     },
     [menuMap, phase, childMode, getChildEntries, formatChildNotes]
   );
@@ -190,8 +213,10 @@ export default function Page2() {
   );
 
   // ドロワーに出す判定結果
-  const selected = useMemo(() => {
-    if (!selectedText) return { variant: "none" as Variant, text: "" };
+  const selected = useMemo<Classified>(() => {
+    if (!selectedText) {
+      return { variant: "none", cookVariant: "none", cookText: "", childText: "" };
+    }
     return classify(selectedText);
   }, [selectedText, classify]);
 
@@ -350,9 +375,11 @@ export default function Page2() {
 
       <OcrBottomDrawer
         selectedText={selectedText}
-        description={selected.text}
+        cookDescription={selected.cookText}
+        childDescription={selected.childText}
         phase={phase as PhaseKey}
         variant={selected.variant}
+        cookVariant={selected.cookVariant}
         onClose={handleCloseDrawer}
         onShowAccident={handleShowAccident}
         accidentInfo={accidentInfo}
