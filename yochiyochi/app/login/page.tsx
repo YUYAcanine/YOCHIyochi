@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -70,6 +70,7 @@ export default function LoginPage() {
         if (typeof window !== "undefined") {
           localStorage.removeItem("yochiLoggedIn");
           localStorage.removeItem("yochiMemberId");
+          window.dispatchEvent(new Event("yochi-auth-changed"));
         }
         return;
       }
@@ -81,6 +82,7 @@ export default function LoginPage() {
       if (typeof window !== "undefined") {
         localStorage.setItem("yochiLoggedIn", "true");
         localStorage.setItem("yochiMemberId", memberId);
+        window.dispatchEvent(new Event("yochi-auth-changed"));
       }
       router.push("/");
     } catch (err) {

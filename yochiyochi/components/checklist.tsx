@@ -63,6 +63,7 @@ type ChecklistContextType = {
   setChildMode: (enabled: boolean) => void;
   children: ChildItem[];
   memberId: string | null;
+  loggedIn: boolean;
   childrenLoading: boolean;
 };
 
@@ -73,13 +74,22 @@ export function ChecklistProvider({ children }: { children: React.ReactNode }) {
   const [phase, setPhaseState] = useState<PhaseKey>("phase1"); // SSR初期値
   const [open, setOpen] = useState<boolean>(false);
   const [memberId, setMemberId] = useState<string | null>(null);
+  const [loggedIn, setLoggedIn] = useState<boolean>(false);
   const [childrenItems, setChildrenItems] = useState<ChildItem[]>([]);
   const [childMode, setChildModeState] = useState<boolean>(false);
   const [childrenLoading, setChildrenLoading] = useState(false);
 
-  useEffect(() => {
-    setPhaseState(safeGetPhase());
-  }, []);
+  const syncAuthState = () => {
+    if (typeof window === "undefined") return;
+    const nextLoggedIn = localStorage.getItem("yochiLoggedIn") === "true";
+    const storedMemberId = localStorage.getItem("yochiMemberId");
+    setLoggedIn(nextLoggedIn);
+    setMemberId(nextLoggedIn ? storedMemberId : null);
+    if (!nextLoggedIn) {
+      setChildModeState(false);
+      safeSetChildMode(false);
+    }
+  };
 
   const setPhase = (p: PhaseKey) => {
     setPhaseState(p);
@@ -96,29 +106,24 @@ export function ChecklistProvider({ children }: { children: React.ReactNode }) {
       if (e.key === STORAGE_KEY) setPhaseState(safeGetPhase());
       if (e.key === STORAGE_CHILD_MODE_KEY) setChildModeState(safeGetChildMode());
       if (e.key === "yochiLoggedIn" || e.key === "yochiMemberId") {
-        const loggedIn = localStorage.getItem("yochiLoggedIn") === "true";
-        const storedMemberId = localStorage.getItem("yochiMemberId");
-        setMemberId(loggedIn ? storedMemberId : null);
-        if (!loggedIn) {
-          setChildModeState(false);
-          safeSetChildMode(false);
-        }
+        syncAuthState();
       }
     };
+    const onAuthChanged = () => {
+      syncAuthState();
+    };
     window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    window.addEventListener("yochi-auth-changed", onAuthChanged);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("yochi-auth-changed", onAuthChanged);
+    };
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const loggedIn = localStorage.getItem("yochiLoggedIn") === "true";
-    const storedMemberId = localStorage.getItem("yochiMemberId");
-    setMemberId(loggedIn ? storedMemberId : null);
+    setPhaseState(safeGetPhase());
     setChildModeState(safeGetChildMode());
-    if (!loggedIn) {
-      setChildModeState(false);
-      safeSetChildMode(false);
-    }
+    syncAuthState();
   }, []);
 
   useEffect(() => {
@@ -165,9 +170,10 @@ export function ChecklistProvider({ children }: { children: React.ReactNode }) {
       setChildMode,
       children: childrenItems,
       memberId,
+      loggedIn,
       childrenLoading,
     }),
-    [phase, open, childMode, childrenItems, memberId, childrenLoading]
+    [phase, open, childMode, childrenItems, memberId, loggedIn, childrenLoading]
   );
   return <ChecklistContext.Provider value={value}>{children}</ChecklistContext.Provider>;
 }
@@ -235,6 +241,14 @@ export function ChecklistPanel() {
   const TXT_HEAD = "text-[#4D3F36]";   // 見出し＆本文の濃い茶
   const headerDescription =
     memberId && childMode ? "表示モードを選択してください。" : "乳幼児の段階を選択してください。";
+  const isMember = Boolean(memberId);
+  const handleSelectChildMode = () => {
+    if (!isMember) {
+      alert("この機能は会員限定です");
+      return;
+    }
+    setChildMode(true);
+  };
 
   return (
     <>
@@ -256,54 +270,59 @@ export function ChecklistPanel() {
         </div>
 
         <div className="p-4 overflow-y-auto h-[calc(100%-3.5rem)]">
-          {memberId && (
-            <div>
-              <h4 className={`text-base font-semibold ${TXT_HEAD}`}>表示モード</h4>
-              <p className="text-xs text-[#6B5A4E] mt-1">
-                園児モードでは登録済みの食べられない食品のみ緑で表示します。
-              </p>
+          <div>
+            <h4 className={`text-base font-semibold ${TXT_HEAD}`}>表示モード</h4>
+            <p className="text-xs text-[#6B5A4E] mt-1">
+              園児モードでは登録済みの食べられない食品のみ緑で表示します。
+            </p>
 
-              {childrenLoading && (
-                <p className="text-xs text-[#6B5A4E] mt-3">読み込み中...</p>
-              )}
+            {childrenLoading && isMember && (
+              <p className="text-xs text-[#6B5A4E] mt-3">読み込み中...</p>
+            )}
 
-              {!childrenLoading && children.length === 0 && (
-                <p className="text-xs text-[#6B5A4E] mt-3">園児の登録がありません。</p>
-              )}
+            {!childrenLoading && isMember && children.length === 0 && (
+              <p className="text-xs text-[#6B5A4E] mt-3">園児の登録がありません。</p>
+            )}
 
-              <div className="mt-3 space-y-2">
-                <label
-                  className="flex items-center gap-3 rounded-xl p-3 cursor-pointer border bg-[#F0E4D8] border-[#E5D9CE] hover:brightness-95"
-                  onClick={() => setChildMode(false)}
-                >
-                  <input
-                    type="radio"
-                    name="display-mode"
-                    checked={!childMode}
-                    onChange={() => setChildMode(false)}
-                    className="accent-[#5C3A2E]"
-                  />
-                  <span className={`font-medium ${TXT_HEAD}`}>乳児期別表示</span>
-                </label>
-                <label
-                  className="flex items-center gap-3 rounded-xl p-3 cursor-pointer border bg-[#E6F4EA] border-[#9FD3AE] hover:brightness-95"
-                  onClick={() => setChildMode(true)}
-                >
-                  <input
-                    type="radio"
-                    name="display-mode"
-                    checked={childMode}
-                    onChange={() => setChildMode(true)}
-                    className="accent-[#2F7D4C]"
-                  />
-                  <span className={`font-medium ${TXT_HEAD}`}>園児モード</span>
-                </label>
-              </div>
+            {!isMember && (
+              <p className="text-xs text-[#6B5A4E] mt-3">園児モードは会員限定です。</p>
+            )}
+
+            <div className="mt-3 space-y-2">
+              <label
+                className="flex items-center gap-3 rounded-xl p-3 cursor-pointer border bg-[#F0E4D8] border-[#E5D9CE] hover:brightness-95"
+                onClick={() => setChildMode(false)}
+              >
+                <input
+                  type="radio"
+                  name="display-mode"
+                  checked={!childMode}
+                  onChange={() => setChildMode(false)}
+                  className="accent-[#5C3A2E]"
+                />
+                <span className={`font-medium ${TXT_HEAD}`}>乳児期別表示</span>
+              </label>
+              <label
+                className={`flex items-center gap-3 rounded-xl p-3 cursor-pointer border bg-[#E6F4EA] border-[#9FD3AE] hover:brightness-95 ${
+                  isMember ? "" : "opacity-60"
+                }`}
+                onClick={handleSelectChildMode}
+              >
+                <input
+                  type="radio"
+                  name="display-mode"
+                  checked={isMember && childMode}
+                  onChange={handleSelectChildMode}
+                  disabled={!isMember}
+                  className="accent-[#2F7D4C]"
+                />
+                <span className={`font-medium ${TXT_HEAD}`}>園児モード</span>
+              </label>
             </div>
-          )}
+          </div>
 
-          {(!childMode || !memberId) && (
-            <div className={`${memberId ? "mt-6 pt-4 border-t border-[#E5D9CE]" : ""}`}>
+          {!childMode && (
+            <div className="mt-6 pt-4 border-t border-[#E5D9CE]">
               {PHASE_ITEMS.map((item) => {
                 const active = phase === item.key;
                 return (

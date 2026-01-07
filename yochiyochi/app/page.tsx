@@ -41,6 +41,7 @@ export default function Page1() {
     }
     localStorage.setItem("yochiLoggedIn", "false");
     localStorage.removeItem("yochiMemberId");
+    window.dispatchEvent(new Event("yochi-auth-changed"));
     setIsLoggedIn(false);
     setMemberId(null);
     router.replace("/");
