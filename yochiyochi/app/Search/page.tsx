@@ -359,9 +359,11 @@ export default function Page6() {
 
       <BottomDrawer
         openText={selectedFood?.food_name || ""}
-        description={selected.text}
+        cookDescription={selected.text}
+        childDescription=""
         phase={phase}
         variant={selected.variant}
+        cookVariant={selected.variant}
         onClose={handleCloseDrawer}
         onShowAccidentInfo={handleShowAccidentInfo}
         accidentInfo={accidentInfo}
