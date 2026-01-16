@@ -14,8 +14,8 @@ function GaInnerTracker() {
     const query = searchParams.toString();
     const url = query ? `${pathname}?${query}` : pathname;
 
-    if (typeof window !== "undefined" && (window as any).gtag) {
-      (window as any).gtag("config", GA_ID, { page_path: url });
+    if (typeof window !== "undefined" && window.gtag) {
+      window.gtag("config", GA_ID, { page_path: url });
     }
   }, [pathname, searchParams, GA_ID]);
 
@@ -29,4 +29,3 @@ export default function GaTracker() {
     </Suspense>
   );
 }
-
