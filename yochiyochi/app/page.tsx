@@ -10,6 +10,16 @@ export default function Page1() {
   const router = useRouter();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [memberId, setMemberId] = useState<string | null>(null);
+  const [hiyariNews, setHiyariNews] = useState<
+    Array<{
+      id: number;
+      food_name: string;
+      detail: string | null;
+      created_at: string;
+    }>
+  >([]);
+  const [newsLoading, setNewsLoading] = useState(false);
+  const [newsError, setNewsError] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -32,6 +42,34 @@ export default function Page1() {
     window.addEventListener("storage", handleStorage);
     return () => {
       window.removeEventListener("storage", handleStorage);
+    };
+  }, [isLoggedIn, memberId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let cancelled = false;
+
+    const fetchNews = async () => {
+      setNewsLoading(true);
+      setNewsError(null);
+      try {
+        const res = await fetch("/api/meal-records?type=hiyari&limit=3", {
+          cache: "no-store",
+        });
+        if (!res.ok) throw new Error("fetch failed");
+        const json = await res.json();
+        if (cancelled) return;
+        setHiyariNews(Array.isArray(json) ? json : json.items ?? []);
+      } catch {
+        if (!cancelled) setNewsError("新着ニュースの取得に失敗しました");
+      } finally {
+        if (!cancelled) setNewsLoading(false);
+      }
+    };
+
+    fetchNews();
+    return () => {
+      cancelled = true;
     };
   }, []);
 
@@ -107,7 +145,7 @@ export default function Page1() {
             })
           }
         >
-          チェックをはじめる
+          献立チェック
         </Link>
         {isLoggedIn && (
           <Link
@@ -121,11 +159,55 @@ export default function Page1() {
               })
             }
           >
-            食べられない食品を登録する
+            給食記録
           </Link>
         )}
       </div>
 
+      <div className="row-start-3 row-end-4 w-full max-w-2xl self-start mt-6">
+        <div className="rounded-2xl border border-[#E8DCD0] bg-[#F5EDE6] p-4 shadow-md">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-[#5C3A2E]">保育ニュース</h2>
+            <span className="text-xs font-semibold text-[#8A776A]">
+              ヒヤリハット速報
+            </span>
+          </div>
+
+          {newsLoading && (
+            <p className="text-sm text-[#6B5A4E] mt-3">読み込み中...</p>
+          )}
+          {newsError && <p className="text-sm text-red-600 mt-3">{newsError}</p>}
+
+          {!newsLoading && !newsError && (
+            <>
+              {hiyariNews.length > 0 ? (
+                <ul className="mt-4 space-y-3">
+                  {hiyariNews.map((item) => (
+                    <li
+                      key={item.id}
+                      className="rounded-xl border border-[#E8DCD0] bg-white p-3"
+                    >
+                      <div className="text-sm font-semibold text-[#4D3F36]">
+                        {item.food_name}
+                      </div>
+                      {item.detail && (
+                        <p className="text-sm text-[#6B5A4E] mt-1">{item.detail}</p>
+                      )}
+                      <div className="text-xs text-[#8A776A] mt-2">
+                        {new Date(item.created_at).toLocaleString()}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-[#6B5A4E] mt-3">
+                  新しいヒヤリハットはありません。
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      </div>
 
       <style jsx global>{`
         /* ロゴ入場 */

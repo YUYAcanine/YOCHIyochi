@@ -17,6 +17,17 @@ type Props = {
   onShowAccidentInfo?: () => void;
   accidentInfo?: string;
   showAccidentInfo?: boolean;
+  cookEditor?: {
+    canEdit: boolean;
+    isEditing: boolean;
+    draft: string;
+    onChange: (value: string) => void;
+    onStart: () => void;
+    onCancel: () => void;
+    onSave: () => void;
+    saving: boolean;
+    message?: string | null;
+  };
 };
 
 export default function BottomDrawer({
@@ -30,6 +41,7 @@ export default function BottomDrawer({
   onShowAccidentInfo,
   accidentInfo,
   showAccidentInfo,
+  cookEditor,
 }: Props) {
   const open = !!openText && (!!cookDescription || !!childDescription) && variant !== "none";
 
@@ -64,6 +76,51 @@ export default function BottomDrawer({
             variant={cookVariant === "none" ? "ok" : cookVariant}
             title="調理情報"
           />
+        )}
+
+        {cookEditor?.canEdit && (
+          <div className="mt-2 pt-2 border-t border-[#E8DCD0]">
+            {!cookEditor.isEditing ? (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={cookEditor.onStart}
+                  className="text-[#6b5a4e] underline underline-offset-4 font-semibold transition-opacity duration-200 hover:opacity-70 py-1"
+                >
+                  調理情報を編集
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <textarea
+                  className="w-full rounded-lg border border-[#D3C5B9] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C7A690]"
+                  rows={3}
+                  value={cookEditor.draft}
+                  onChange={(e) => cookEditor.onChange(e.target.value)}
+                />
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={cookEditor.onCancel}
+                    className="rounded-lg border border-[#D6C2B4] bg-[#F5EDE6] px-4 py-2 text-sm font-semibold text-[#6B5A4E] hover:bg-[#E7DBCF]"
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cookEditor.onSave}
+                    disabled={cookEditor.saving}
+                    className="rounded-lg bg-[#9C7B6C] px-4 py-2 text-sm font-semibold text-white hover:bg-[#A88877] disabled:opacity-60"
+                  >
+                    {cookEditor.saving ? "保存中..." : "保存する"}
+                  </button>
+                </div>
+                {cookEditor.message && (
+                  <p className="text-sm text-[#6B5A4E]">{cookEditor.message}</p>
+                )}
+              </div>
+            )}
+          </div>
         )}
 
         {childDescription && (

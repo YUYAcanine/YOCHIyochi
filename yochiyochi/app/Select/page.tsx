@@ -29,6 +29,7 @@ import { useImageInput } from "@/hooks/useImageInput";
 import { useAnalytics } from "@/hooks/useAnalytics";
 
 import { canon } from "@/lib/textNormalize";
+import { supabase } from "@/lib/supabaseClient";
 import type { PhaseKey } from "@/types/food";
 
 /* 型：OcrImageの型から参照して揃える */
@@ -80,6 +81,10 @@ export default function Page2() {
   const { phase, childMode, children } = useChecklist();
 
   const [memberId, setMemberId] = useState<string | null>(null);
+  const [isEditingCook, setIsEditingCook] = useState(false);
+  const [cookDraft, setCookDraft] = useState("");
+  const [cookSaving, setCookSaving] = useState(false);
+  const [cookMessage, setCookMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -95,9 +100,10 @@ export default function Page2() {
   const drawerOpen = Boolean(selectedText);
 
   // 辞書データ（食品名→フェーズ別説明、食品名→ID）
-  const { menuMap, foodIdMap } = useMenuData() as {
+  const { menuMap, foodIdMap, updateMenuForKey } = useMenuData(memberId) as {
     menuMap: Record<string, MenuInfo>;
     foodIdMap: Record<string, number>;
+    updateMenuForKey: (key: string, phaseKey: keyof MenuInfo, value: string | null) => void;
   };
 
   const childFoodMap = useMemo(() => {
@@ -220,6 +226,18 @@ export default function Page2() {
     return classify(selectedText);
   }, [selectedText, classify]);
 
+  useEffect(() => {
+    if (!selectedText) {
+      setCookDraft("");
+      setCookMessage(null);
+      setIsEditingCook(false);
+      return;
+    }
+    setCookDraft(selected.cookText ?? "");
+    setCookMessage(null);
+    setIsEditingCook(false);
+  }, [selectedText, selected.cookText]);
+
   /* 画像選択 */
   const handlePickFile = useCallback(
     async (file: File, source: "camera" | "file") => {
@@ -245,6 +263,8 @@ export default function Page2() {
   const handleCloseDrawer = useCallback(() => {
     setSelectedText("");
     resetAccident();
+    setIsEditingCook(false);
+    setCookMessage(null);
   }, [resetAccident]);
 
   /* 画像リセット */
@@ -259,8 +279,80 @@ export default function Page2() {
     if (!selectedText) return;
     const key = canon(selectedText);
     const foodId = key ? foodIdMap[key] : null;
-    await fetchByFoodId(foodId);
-  }, [selectedText, foodIdMap, fetchByFoodId]);
+    await fetchByFoodId(foodId, memberId);
+  }, [selectedText, foodIdMap, fetchByFoodId, memberId]);
+
+  const handleStartEditCook = useCallback(() => {
+    setIsEditingCook(true);
+    setCookMessage(null);
+    setCookDraft(selected.cookText ?? "");
+  }, [selected.cookText]);
+
+  const handleCancelEditCook = useCallback(() => {
+    setIsEditingCook(false);
+    setCookMessage(null);
+    setCookDraft(selected.cookText ?? "");
+  }, [selected.cookText]);
+
+  const handleSaveCook = useCallback(async () => {
+    if (!selectedText) return;
+    const key = canon(selectedText);
+    if (!key) {
+      setCookMessage("調理情報の編集に失敗しました。");
+      return;
+    }
+    if (!memberId) {
+      setCookMessage("会員情報が見つかりません。");
+      return;
+    }
+    const foodId = foodIdMap[key];
+    if (!foodId) {
+      setCookMessage("調理情報の編集に必要なIDが見つかりません。");
+      return;
+    }
+
+    const value = cookDraft.trim();
+
+    setCookSaving(true);
+    try {
+      if (!value.length) {
+        const { error } = await supabase
+          .from("yochiyochi_cook_overrides")
+          .delete()
+          .eq("member_id", memberId)
+          .eq("food_id", foodId)
+          .eq("phase", phase);
+
+        if (error) throw error;
+        updateMenuForKey(key, phase, null);
+        setCookMessage("保存しました。");
+        setIsEditingCook(false);
+        return;
+      }
+
+      const { error } = await supabase
+        .from("yochiyochi_cook_overrides")
+        .upsert(
+          {
+            member_id: memberId,
+            food_id: foodId,
+            phase,
+            description: value,
+          },
+          { onConflict: "member_id,food_id,phase" }
+        );
+
+      if (error) throw error;
+
+      updateMenuForKey(key, phase, value.length ? value : null);
+      setCookMessage("保存しました。");
+      setIsEditingCook(false);
+    } catch {
+      setCookMessage("保存に失敗しました。");
+    } finally {
+      setCookSaving(false);
+    }
+  }, [selectedText, foodIdMap, memberId, phase, cookDraft, updateMenuForKey]);
 
   /* 検索画面へ */
   const handleGoSearch = useCallback(() => {
@@ -384,6 +476,17 @@ export default function Page2() {
         onShowAccident={handleShowAccident}
         accidentInfo={accidentInfo}
         showAccidentInfo={showAccidentInfo}
+        cookEditor={{
+          canEdit: Boolean(memberId),
+          isEditing: isEditingCook,
+          draft: cookDraft,
+          onChange: setCookDraft,
+          onStart: handleStartEditCook,
+          onCancel: handleCancelEditCook,
+          onSave: handleSaveCook,
+          saving: cookSaving,
+          message: cookMessage,
+        }}
       />
 
       {loading && <LoadingSpinner />}

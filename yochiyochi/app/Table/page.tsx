@@ -1,4 +1,3 @@
-// app/page5/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -30,7 +29,7 @@ export default function Page5() {
         const loggedIn = localStorage.getItem("yochiLoggedIn") === "true";
         const storedMemberId = localStorage.getItem("yochiMemberId");
         if (!loggedIn || !storedMemberId) {
-          router.replace("/login");
+          router.replace("/Login");
           return;
         }
         setMemberId(storedMemberId);
@@ -41,10 +40,9 @@ export default function Page5() {
         );
         if (!res.ok) throw new Error("fetch failed");
         const json = await res.json();
-        // API が { items: rows } を返す場合は json.items に合わせる
         setData(Array.isArray(json) ? json : json.items ?? []);
-      } catch (e) {
-        setError("データ取得に失敗しました");
+      } catch {
+        setError("データ取得に失敗しました。");
       } finally {
         setLoading(false);
       }
@@ -73,7 +71,7 @@ export default function Page5() {
         }
       />
       <div className="pt-24 px-6 pb-10">
-        <h1 className="text-xl font-bold mb-4">登録内容の確認</h1>
+        <h1 className="text-xl font-bold mb-4">登録情報の確認</h1>
 
         {loading && <p className="text-[#6B5A4E]">読み込み中...</p>}
         {error && <p className="text-red-600">{error}</p>}
@@ -95,7 +93,9 @@ export default function Page5() {
                 {data.map((row) => (
                   <tr key={row.id}>
                     <td className="border-b border-[#F1E7DD] p-3">{row.id}</td>
-                    <td className="border-b border-[#F1E7DD] p-3">{row.child_name}</td>
+                    <td className="border-b border-[#F1E7DD] p-3">
+                      {row.child_name}
+                    </td>
                     <td className="border-b border-[#F1E7DD] p-3">{row.age_month}</td>
                     <td className="border-b border-[#F1E7DD] p-3">{row.no_eat}</td>
                     <td className="border-b border-[#F1E7DD] p-3">{row.note || "-"}</td>
@@ -107,7 +107,7 @@ export default function Page5() {
                 {data.length === 0 && (
                   <tr>
                     <td className="p-4 text-center text-[#8A776A]" colSpan={6}>
-                      データがありません
+                      データがありません。
                     </td>
                   </tr>
                 )}
@@ -124,10 +124,10 @@ export default function Page5() {
             ホームに戻る
           </Link>
           <Link
-            href="/page4"
+            href="/Register"
             className="inline-flex items-center justify-center rounded-xl bg-[#9C7B6C] px-5 py-2 font-semibold text-white shadow-sm transition hover:bg-[#A88877]"
           >
-            新規登録
+            給食記録に戻る
           </Link>
         </div>
       </div>

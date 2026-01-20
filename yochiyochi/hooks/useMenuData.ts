@@ -42,9 +42,16 @@ type FallbackRow = {
   description_phase5: string | null;
 };
 
-export function useMenuData() {
+type OverrideRow = {
+  food_id: number;
+  phase: string;
+  description: string | null;
+};
+
+export function useMenuData(memberId?: string | null) {
   const [menuMap, setMenuMap] = useState<Record<string, MenuInfo>>({});
   const [foodIdMap, setFoodIdMap] = useState<Record<string, number>>({});
+  const [cookIdMap, setCookIdMap] = useState<Record<string, number>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -88,6 +95,7 @@ export function useMenuData() {
           if (cancelled) return;
           setMenuMap(map);
           setFoodIdMap({});
+          setCookIdMap({});
           return;
         }
 
@@ -113,12 +121,18 @@ export function useMenuData() {
         // 3) 結合
         const map: Record<string, MenuInfo> = {};
         const idMap: Record<string, number> = {};
+        const cookMapByFood: Record<string, number> = {};
+        const idToKey = new Map<number, string>();
 
         for (const food of foods) {
           const key = canon(food.food_name ?? "");
           if (!key) continue;
 
           idMap[key] = food.food_id;
+          idToKey.set(food.food_id, key);
+          if (food.cook_id != null) {
+            cookMapByFood[key] = food.cook_id;
+          }
 
           if (food.cook_id == null) continue;
           const cookInfo = cookMap.get(food.cook_id);
@@ -133,9 +147,32 @@ export function useMenuData() {
           };
         }
 
+        // 4) 会員ごとの上書き
+        if (memberId) {
+          const { data: overrideData, error: overrideError } = await supabase
+            .from("yochiyochi_cook_overrides")
+            .select("food_id, phase, description")
+            .eq("member_id", memberId);
+
+          if (!overrideError && overrideData) {
+            const overrides = overrideData as unknown as OverrideRow[];
+            for (const row of overrides) {
+              const key = idToKey.get(row.food_id);
+              if (!key) continue;
+              const phaseKey = row.phase as keyof MenuInfo;
+              if (!phaseKey) continue;
+              map[key] = {
+                ...map[key],
+                [phaseKey]: row.description?.trim() ?? undefined,
+              };
+            }
+          }
+        }
+
         if (cancelled) return;
         setMenuMap(map);
         setFoodIdMap(idMap);
+        setCookIdMap(cookMapByFood);
       } catch (e) {
         console.error("useMenuData error:", e);
       }
@@ -145,7 +182,20 @@ export function useMenuData() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [memberId]);
 
-  return { menuMap, foodIdMap };
+  const updateMenuForKey = (key: string, phaseKey: keyof MenuInfo, value: string | null) => {
+    setMenuMap((prev) => {
+      const current = prev[key] ?? {};
+      return {
+        ...prev,
+        [key]: {
+          ...current,
+          [phaseKey]: value ?? undefined,
+        },
+      };
+    });
+  };
+
+  return { menuMap, foodIdMap, cookIdMap, updateMenuForKey };
 }
