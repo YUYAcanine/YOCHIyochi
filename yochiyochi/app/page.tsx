@@ -204,6 +204,14 @@ export default function Page1() {
                   新しいヒヤリハットはありません。
                 </p>
               )}
+              <div className="mt-4 flex justify-end">
+                <Link
+                  href="/News"
+                  className="text-sm font-semibold text-[#6B5A4E] underline underline-offset-4 hover:opacity-70"
+                >
+                  すべて見る
+                </Link>
+              </div>
             </>
           )}
         </div>

@@ -30,6 +30,7 @@ export default function Page4() {
 
   const [authChecked, setAuthChecked] = useState(false);
   const [memberId, setMemberId] = useState<string | null>(null);
+  const [childOptions, setChildOptions] = useState<string[]>([]);
 
   const { foodIdMap } = useMenuData();
 
@@ -50,6 +51,40 @@ export default function Page4() {
     setMemberId(storedMemberId);
     setAuthChecked(true);
   }, [router]);
+
+  useEffect(() => {
+    if (!memberId) {
+      setChildOptions([]);
+      return;
+    }
+    let cancelled = false;
+    const fetchChildren = async () => {
+      try {
+        const res = await fetch(
+          `/api/answers?member_id=${encodeURIComponent(memberId)}`,
+          { cache: "no-store" }
+        );
+        if (!res.ok) throw new Error("fetch failed");
+        const json = await res.json();
+        const items: Array<{ child_name?: string | null }> = Array.isArray(json)
+          ? json
+          : json.items ?? [];
+        if (cancelled) return;
+        const names = items
+          .map((item) => (item.child_name ?? "").trim())
+          .filter(Boolean);
+        const unique = Array.from(new Set(names));
+        setChildOptions(unique);
+      } catch {
+        if (!cancelled) setChildOptions([]);
+      }
+    };
+
+    fetchChildren();
+    return () => {
+      cancelled = true;
+    };
+  }, [memberId]);
 
   if (!authChecked) {
     return null;
@@ -190,6 +225,7 @@ export default function Page4() {
               園児の名前
               <input
                 type="text"
+                list="child-name-options"
                 className="mt-1 block w-full rounded-lg border border-[#D3C5B9] bg-[#FFF9F5] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#C7A690]"
                 value={childName}
                 onChange={(e) => setChildName(e.target.value)}
@@ -254,6 +290,7 @@ export default function Page4() {
               園児の名前
               <input
                 type="text"
+                list="child-name-options"
                 className="mt-1 block w-full rounded-lg border border-[#D3C5B9] bg-[#FFF9F5] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#C7A690]"
                 value={mealChildName}
                 onChange={(e) => setMealChildName(e.target.value)}
@@ -334,6 +371,12 @@ export default function Page4() {
           </Link>
         </div>
       </div>
+
+      <datalist id="child-name-options">
+        {childOptions.map((name) => (
+          <option key={name} value={name} />
+        ))}
+      </datalist>
     </main>
   );
 }
