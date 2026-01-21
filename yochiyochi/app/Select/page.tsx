@@ -8,12 +8,12 @@
  * - 選択中は下部ドロワーに判定結果/事故情報を表示
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import Ribbon from "@/components/Ribbon";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import { useChecklist } from "@/components/checklist";
+import { PHASE_LABELS, useChecklist } from "@/components/checklist";
 
 import { Camera, Image as ImageIcon, Search } from "lucide-react";
 import type { ChangeEvent, ComponentProps } from "react";
@@ -82,9 +82,16 @@ export default function Page2() {
 
   const [memberId, setMemberId] = useState<string | null>(null);
   const [isEditingCook, setIsEditingCook] = useState(false);
-  const [cookDraft, setCookDraft] = useState("");
+  const [cookDrafts, setCookDrafts] = useState<MenuInfo>({
+    phase1: "",
+    phase2: "",
+    phase3: "",
+    phase4: "",
+    phase5: "",
+  });
   const [cookSaving, setCookSaving] = useState(false);
   const [cookMessage, setCookMessage] = useState<string | null>(null);
+  const lastSelectedTextRef = useRef<string>("");
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -226,17 +233,41 @@ export default function Page2() {
     return classify(selectedText);
   }, [selectedText, classify]);
 
+  const buildCookDrafts = useCallback(
+    (key: string | null): MenuInfo => {
+      if (!key) {
+        return { phase1: "", phase2: "", phase3: "", phase4: "", phase5: "" };
+      }
+      const info = menuMap[key];
+      return {
+        phase1: info?.phase1 ?? "",
+        phase2: info?.phase2 ?? "",
+        phase3: info?.phase3 ?? "",
+        phase4: info?.phase4 ?? "",
+        phase5: info?.phase5 ?? "",
+      };
+    },
+    [menuMap]
+  );
+
   useEffect(() => {
+    const selectionChanged = selectedText !== lastSelectedTextRef.current;
     if (!selectedText) {
-      setCookDraft("");
+      setCookDrafts({ phase1: "", phase2: "", phase3: "", phase4: "", phase5: "" });
       setCookMessage(null);
       setIsEditingCook(false);
+      lastSelectedTextRef.current = "";
       return;
     }
-    setCookDraft(selected.cookText ?? "");
+    if (!selectionChanged && isEditingCook) {
+      return;
+    }
+    const key = canon(selectedText);
+    setCookDrafts(buildCookDrafts(key));
     setCookMessage(null);
     setIsEditingCook(false);
-  }, [selectedText, selected.cookText]);
+    lastSelectedTextRef.current = selectedText;
+  }, [selectedText, buildCookDrafts, isEditingCook]);
 
   /* 画像選択 */
   const handlePickFile = useCallback(
@@ -282,17 +313,27 @@ export default function Page2() {
     await fetchByFoodId(foodId, memberId);
   }, [selectedText, foodIdMap, fetchByFoodId, memberId]);
 
+  const handleHideAccident = useCallback(() => {
+    resetAccident();
+  }, [resetAccident]);
+
   const handleStartEditCook = useCallback(() => {
     setIsEditingCook(true);
     setCookMessage(null);
-    setCookDraft(selected.cookText ?? "");
-  }, [selected.cookText]);
+    const key = canon(selectedText);
+    setCookDrafts(buildCookDrafts(key));
+  }, [selectedText, buildCookDrafts]);
 
   const handleCancelEditCook = useCallback(() => {
     setIsEditingCook(false);
     setCookMessage(null);
-    setCookDraft(selected.cookText ?? "");
-  }, [selected.cookText]);
+    const key = canon(selectedText);
+    setCookDrafts(buildCookDrafts(key));
+  }, [selectedText, buildCookDrafts]);
+
+  const handleChangeCookDraft = useCallback((phaseKey: PhaseKey, value: string) => {
+    setCookDrafts((prev) => ({ ...prev, [phaseKey]: value }));
+  }, []);
 
   const handleSaveCook = useCallback(async () => {
     if (!selectedText) return;
@@ -311,40 +352,40 @@ export default function Page2() {
       return;
     }
 
-    const value = cookDraft.trim();
-
     setCookSaving(true);
     try {
-      if (!value.length) {
+      const phaseKeys: PhaseKey[] = ["phase1", "phase2", "phase3", "phase4", "phase5"];
+      const requests = phaseKeys.map(async (phaseKey) => {
+        const value = (cookDrafts[phaseKey] ?? "").trim();
+        if (!value.length) {
+          const { error } = await supabase
+            .from("yochiyochi_cook_overrides")
+            .delete()
+            .eq("member_id", memberId)
+            .eq("food_id", foodId)
+            .eq("phase", phaseKey);
+          if (error) throw error;
+          updateMenuForKey(key, phaseKey, null);
+          return;
+        }
+
         const { error } = await supabase
           .from("yochiyochi_cook_overrides")
-          .delete()
-          .eq("member_id", memberId)
-          .eq("food_id", foodId)
-          .eq("phase", phase);
-
+          .upsert(
+            {
+              member_id: memberId,
+              food_id: foodId,
+              phase: phaseKey,
+              description: value,
+            },
+            { onConflict: "member_id,food_id,phase" }
+          );
         if (error) throw error;
-        updateMenuForKey(key, phase, null);
-        setCookMessage("保存しました。");
-        setIsEditingCook(false);
-        return;
-      }
+        updateMenuForKey(key, phaseKey, value);
+      });
 
-      const { error } = await supabase
-        .from("yochiyochi_cook_overrides")
-        .upsert(
-          {
-            member_id: memberId,
-            food_id: foodId,
-            phase,
-            description: value,
-          },
-          { onConflict: "member_id,food_id,phase" }
-        );
+      await Promise.all(requests);
 
-      if (error) throw error;
-
-      updateMenuForKey(key, phase, value.length ? value : null);
       setCookMessage("保存しました。");
       setIsEditingCook(false);
     } catch {
@@ -352,7 +393,7 @@ export default function Page2() {
     } finally {
       setCookSaving(false);
     }
-  }, [selectedText, foodIdMap, memberId, phase, cookDraft, updateMenuForKey]);
+  }, [selectedText, foodIdMap, memberId, cookDrafts, updateMenuForKey]);
 
   /* 検索画面へ */
   const handleGoSearch = useCallback(() => {
@@ -445,6 +486,15 @@ export default function Page2() {
         }
       />
 
+      {imgSrc && (
+        <div className="absolute top-24 left-4 z-30">
+          <div className="flex items-center gap-2 rounded-full border border-[#D6C2B4] bg-white/90 px-3 py-1 text-xs font-semibold text-[#5C3A2E] shadow-sm">
+            <span>{childMode ? "園児モード" : "乳児期別モード"}</span>
+            {!childMode && <span>・{PHASE_LABELS[phase]}</span>}
+          </div>
+        </div>
+      )}
+
       <div className="flex-grow pt-24">
         {imgSrc ? (
           <OcrStage
@@ -474,13 +524,14 @@ export default function Page2() {
         cookVariant={selected.cookVariant}
         onClose={handleCloseDrawer}
         onShowAccident={handleShowAccident}
+        onHideAccident={handleHideAccident}
         accidentInfo={accidentInfo}
         showAccidentInfo={showAccidentInfo}
         cookEditor={{
           canEdit: Boolean(memberId),
           isEditing: isEditingCook,
-          draft: cookDraft,
-          onChange: setCookDraft,
+          drafts: cookDrafts,
+          onChangePhase: handleChangeCookDraft,
           onStart: handleStartEditCook,
           onCancel: handleCancelEditCook,
           onSave: handleSaveCook,

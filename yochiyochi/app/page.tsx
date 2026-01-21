@@ -86,7 +86,7 @@ export default function Page1() {
   };
 
   return (
-    <main className="relative min-h-screen bg-[#F0E4D8] grid grid-rows-[1fr_auto_1fr] justify-items-center px-6">
+    <main className="relative min-h-screen bg-[#F0E4D8] grid grid-rows-[auto_auto_1fr] justify-items-center px-6 pt-20 pb-10 gap-6">
       <div className={`top-actions ${isLoggedIn ? "top-actions-logged" : ""}`}>
         {!isLoggedIn && (
           <Link
@@ -121,7 +121,7 @@ export default function Page1() {
         )}
       </div>
       {/* 上段：ロゴ（1.2倍大きく） */}
-      <div className="row-start-1 row-end-2 self-end mb-6 swoosh-in select-none">
+      <div className="row-start-1 row-end-2 self-start swoosh-in select-none">
         <Image
           src="/yoyochi.jpg" // /public 配下に置いたファイル
           alt="よちヨチ ロゴ"
@@ -133,7 +133,7 @@ export default function Page1() {
       </div>
 
       {/* 中段：メインボタン（中央） */}
-      <div className="row-start-2 row-end-3 place-self-center flex flex-col items-center gap-4">
+      <div className="row-start-2 row-end-3 self-start flex flex-col items-center gap-4">
         <Link
           href="/Select"
           className="btn-primary fade-up-1"
@@ -164,7 +164,7 @@ export default function Page1() {
         )}
       </div>
 
-      <div className="row-start-3 row-end-4 w-full max-w-2xl self-start mt-6">
+      <div className="row-start-3 row-end-4 w-full max-w-2xl self-start">
         <div className="rounded-2xl border border-[#E8DCD0] bg-[#F5EDE6] p-4 shadow-md">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-[#5C3A2E]">保育ニュース</h2>
@@ -314,10 +314,7 @@ export default function Page1() {
           font-size: 0.95rem;
           font-weight: 700;
           color: #6b5a4e;
-          background: #f5ede6;
-          border: 1px solid #d6c2b4;
-          padding: 0.3rem 0.6rem;
-          border-radius: 0.75rem;
+          padding: 0.1rem 0;
         }
         @media (max-width: 640px) {
           .top-actions {

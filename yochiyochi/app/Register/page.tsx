@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -153,11 +153,11 @@ export default function Page4() {
       <div className="pt-24 px-6 pb-10 flex flex-col items-center">
         <div className="w-full max-w-2xl mb-6">
           <h1 className="text-xl font-bold text-[#4D3F36]">給食記録</h1>
-          <div className="mt-4 flex gap-2">
+          <div className="mt-4 flex gap-2 w-full">
             <button
               type="button"
               onClick={() => setActiveTab("no-eat")}
-              className={`px-4 py-2 rounded-xl font-semibold border transition ${
+              className={`flex-1 px-4 py-2 rounded-xl font-semibold border transition ${
                 activeTab === "no-eat"
                   ? "bg-[#9C7B6C] text-white border-[#9C7B6C]"
                   : "bg-white text-[#6B5A4E] border-[#D6C2B4] hover:bg-[#F5EDE6]"
@@ -168,7 +168,7 @@ export default function Page4() {
             <button
               type="button"
               onClick={() => setActiveTab("meal")}
-              className={`px-4 py-2 rounded-xl font-semibold border transition ${
+              className={`flex-1 px-4 py-2 rounded-xl font-semibold border transition ${
                 activeTab === "meal"
                   ? "bg-[#9C7B6C] text-white border-[#9C7B6C]"
                   : "bg-white text-[#6B5A4E] border-[#D6C2B4] hover:bg-[#F5EDE6]"
@@ -330,10 +330,11 @@ export default function Page4() {
             href="/Table"
             className="inline-flex items-center justify-center rounded-xl bg-[#9C7B6C] px-5 py-2 font-semibold text-white shadow-sm transition hover:bg-[#A88877]"
           >
-            登録情報を確認する
+            園児情報の確認
           </Link>
         </div>
       </div>
     </main>
   );
 }
+

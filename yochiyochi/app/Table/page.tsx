@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Ribbon from "@/components/Ribbon";
@@ -14,9 +14,33 @@ type Answer = {
   created_at: string;
 };
 
+type MealRecord = {
+  id: number;
+  child_name: string;
+  age_month: number;
+  record_type: "growth" | "hiyari";
+  food_name: string;
+  detail: string;
+  created_at: string;
+};
+
+type ChildSummary = {
+  name: string;
+  ages: number[];
+  noEat: Answer[];
+  meals: MealRecord[];
+};
+
+const uniqueSortedAges = (values: number[]) => {
+  const filtered = values.filter((age) => Number.isFinite(age));
+  const unique = Array.from(new Set(filtered));
+  return unique.sort((a, b) => a - b);
+};
+
 export default function Page5() {
   const router = useRouter();
-  const [data, setData] = useState<Answer[]>([]);
+  const [answers, setAnswers] = useState<Answer[]>([]);
+  const [mealRecords, setMealRecords] = useState<MealRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
@@ -34,13 +58,22 @@ export default function Page5() {
         }
         setMemberId(storedMemberId);
         setAuthChecked(true);
-        const res = await fetch(
-          `/api/answers?member_id=${encodeURIComponent(storedMemberId)}`,
-          { cache: "no-store" }
-        );
-        if (!res.ok) throw new Error("fetch failed");
-        const json = await res.json();
-        setData(Array.isArray(json) ? json : json.items ?? []);
+
+        const [answersRes, mealsRes] = await Promise.all([
+          fetch(`/api/answers?member_id=${encodeURIComponent(storedMemberId)}`, {
+            cache: "no-store",
+          }),
+          fetch(`/api/meal-records?member_id=${encodeURIComponent(storedMemberId)}&limit=200`, {
+            cache: "no-store",
+          }),
+        ]);
+
+        if (!answersRes.ok || !mealsRes.ok) throw new Error("fetch failed");
+
+        const answersJson = await answersRes.json();
+        const mealsJson = await mealsRes.json();
+        setAnswers(Array.isArray(answersJson) ? answersJson : answersJson.items ?? []);
+        setMealRecords(Array.isArray(mealsJson) ? mealsJson : mealsJson.items ?? []);
       } catch {
         setError("データ取得に失敗しました。");
       } finally {
@@ -48,6 +81,43 @@ export default function Page5() {
       }
     })();
   }, [router]);
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, ChildSummary>();
+
+    const ensureChild = (rawName: string) => {
+      const name = rawName?.trim() || "名前未入力";
+      if (!map.has(name)) {
+        map.set(name, { name, ages: [], noEat: [], meals: [] });
+      }
+      return map.get(name)!;
+    };
+
+    for (const item of answers) {
+      const child = ensureChild(item.child_name);
+      child.noEat.push(item);
+      if (Number.isFinite(item.age_month)) child.ages.push(item.age_month);
+    }
+
+    for (const item of mealRecords) {
+      const child = ensureChild(item.child_name);
+      child.meals.push(item);
+      if (Number.isFinite(item.age_month)) child.ages.push(item.age_month);
+    }
+
+    return Array.from(map.values())
+      .map((child) => ({
+        ...child,
+        ages: uniqueSortedAges(child.ages),
+        noEat: [...child.noEat].sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        ),
+        meals: [...child.meals].sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        ),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, "ja"));
+  }, [answers, mealRecords]);
 
   if (!authChecked) {
     return null;
@@ -71,48 +141,122 @@ export default function Page5() {
         }
       />
       <div className="pt-24 px-6 pb-10">
-        <h1 className="text-xl font-bold mb-4">登録情報の確認</h1>
+        <h1 className="text-xl font-bold mb-4">園児情報の確認</h1>
 
         {loading && <p className="text-[#6B5A4E]">読み込み中...</p>}
         {error && <p className="text-red-600">{error}</p>}
 
         {!loading && !error && (
-          <div className="overflow-x-auto bg-white rounded-2xl border border-[#E8DCD0] shadow-md">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-[#EFE2D6] text-left text-[#5C4B40]">
-                  <th className="border-b border-[#E8DCD0] p-3">ID</th>
-                  <th className="border-b border-[#E8DCD0] p-3">園児の名前</th>
-                  <th className="border-b border-[#E8DCD0] p-3">月齢</th>
-                  <th className="border-b border-[#E8DCD0] p-3">食べられない食品</th>
-                  <th className="border-b border-[#E8DCD0] p-3">備考</th>
-                  <th className="border-b border-[#E8DCD0] p-3">登録日時</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.map((row) => (
-                  <tr key={row.id}>
-                    <td className="border-b border-[#F1E7DD] p-3">{row.id}</td>
-                    <td className="border-b border-[#F1E7DD] p-3">
-                      {row.child_name}
-                    </td>
-                    <td className="border-b border-[#F1E7DD] p-3">{row.age_month}</td>
-                    <td className="border-b border-[#F1E7DD] p-3">{row.no_eat}</td>
-                    <td className="border-b border-[#F1E7DD] p-3">{row.note || "-"}</td>
-                    <td className="border-b border-[#F1E7DD] p-3">
-                      {new Date(row.created_at).toLocaleString()}
-                    </td>
-                  </tr>
-                ))}
-                {data.length === 0 && (
-                  <tr>
-                    <td className="p-4 text-center text-[#8A776A]" colSpan={6}>
-                      データがありません。
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+          <div className="space-y-6">
+            {grouped.map((child) => {
+              const growth = child.meals.filter((item) => item.record_type === "growth");
+              const hiyari = child.meals.filter((item) => item.record_type === "hiyari");
+              const ageLabel = child.ages.length > 0 ? child.ages.join("、") : "-";
+
+              return (
+                <section
+                  key={child.name}
+                  className="bg-white rounded-2xl border border-[#E8DCD0] shadow-md p-5"
+                >
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <h2 className="text-lg font-bold text-[#5C3A2E]">
+                      園児名：{child.name}
+                    </h2>
+                    <span className="text-sm text-[#6B5A4E]">月齢：{ageLabel}</span>
+                  </div>
+
+                  <div className="mt-4 grid gap-4">
+                    <div>
+                      <h3 className="text-sm font-semibold text-[#6B5A4E]">
+                        食べられない食品
+                      </h3>
+                      {child.noEat.length > 0 ? (
+                        <ul className="mt-2 space-y-2">
+                          {child.noEat.map((item) => (
+                            <li
+                              key={item.id}
+                              className="rounded-xl border border-[#EFE2D6] bg-[#FFF9F5] p-3"
+                            >
+                              <div className="text-sm font-semibold text-[#4D3F36]">
+                                {item.no_eat}
+                              </div>
+                              {item.note && (
+                                <div className="text-xs text-[#6B5A4E] mt-1">
+                                  備考：{item.note}
+                                </div>
+                              )}
+                              <div className="text-xs text-[#8A776A] mt-1">
+                                {new Date(item.created_at).toLocaleString()}
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-2 text-sm text-[#8A776A]">登録がありません。</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <h3 className="text-sm font-semibold text-[#6B5A4E]">成長キャッチ</h3>
+                      {growth.length > 0 ? (
+                        <ul className="mt-2 space-y-2">
+                          {growth.map((item) => (
+                            <li
+                              key={item.id}
+                              className="rounded-xl border border-[#EFE2D6] bg-[#F9F5FF] p-3"
+                            >
+                              <div className="text-sm font-semibold text-[#4D3F36]">
+                                {item.food_name}
+                              </div>
+                              <div className="text-sm text-[#6B5A4E] mt-1">
+                                {item.detail}
+                              </div>
+                              <div className="text-xs text-[#8A776A] mt-1">
+                                {new Date(item.created_at).toLocaleString()}
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-2 text-sm text-[#8A776A]">記録がありません。</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <h3 className="text-sm font-semibold text-[#6B5A4E]">ヒヤリハット</h3>
+                      {hiyari.length > 0 ? (
+                        <ul className="mt-2 space-y-2">
+                          {hiyari.map((item) => (
+                            <li
+                              key={item.id}
+                              className="rounded-xl border border-[#EFE2D6] bg-[#FDF0F0] p-3"
+                            >
+                              <div className="text-sm font-semibold text-[#4D3F36]">
+                                {item.food_name}
+                              </div>
+                              <div className="text-sm text-[#6B5A4E] mt-1">
+                                {item.detail}
+                              </div>
+                              <div className="text-xs text-[#8A776A] mt-1">
+                                {new Date(item.created_at).toLocaleString()}
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-2 text-sm text-[#8A776A]">記録がありません。</p>
+                      )}
+                    </div>
+                  </div>
+                </section>
+              );
+            })}
+
+            {grouped.length === 0 && (
+              <div className="rounded-2xl border border-[#E8DCD0] bg-white p-6 text-center text-[#8A776A]">
+                登録データがありません。
+              </div>
+            )}
           </div>
         )}
 

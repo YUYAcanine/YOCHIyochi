@@ -68,9 +68,9 @@ export async function GET(req: Request) {
 
     let query = supabase
       .from("yochiyochi_meal_records")
-      .select("id, food_name, detail, record_type, created_at")
+      .select("id, child_name, age_month, food_name, detail, record_type, created_at")
       .order("created_at", { ascending: false })
-      .limit(Number.isNaN(limit) ? 5 : Math.min(limit, 20));
+      .limit(Number.isNaN(limit) ? 5 : Math.min(limit, 200));
 
     if (recordType && isRecordType(recordType)) {
       query = query.eq("record_type", recordType);
