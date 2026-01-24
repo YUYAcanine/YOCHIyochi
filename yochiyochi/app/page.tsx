@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { event } from "@/lib/gtag"; // GAイベント送信用
 
 export default function Page1() {
   const router = useRouter();
@@ -92,13 +91,6 @@ export default function Page1() {
           <Link
             href="/Login"
             className="btn-secondary fade-up-2"
-            onClick={() =>
-              event({
-                action: "login_click",
-                category: "button",
-                label: "page1 login",
-              })
-            }
           >
             マイページ
           </Link>
@@ -137,13 +129,6 @@ export default function Page1() {
         <Link
           href="/Select"
           className="btn-primary fade-up-1"
-          onClick={() =>
-            event({
-              action: "start_check_click",
-              category: "button",
-              label: "page1 main",
-            })
-          }
         >
           献立チェック
         </Link>
@@ -151,13 +136,6 @@ export default function Page1() {
           <Link
             href="/Register"
             className="btn-secondary fade-up-3"
-            onClick={() =>
-              event({
-                action: "no_eat_register_click",
-                category: "button",
-                label: "page1 no_eat",
-              })
-            }
           >
             給食記録
           </Link>

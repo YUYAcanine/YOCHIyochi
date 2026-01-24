@@ -26,7 +26,6 @@ import { useOCR } from "@/hooks/useOCR";
 import { useMenuData } from "@/hooks/useMenuData";
 import { useAccidentInfo } from "@/hooks/useAccidentInfo";
 import { useImageInput } from "@/hooks/useImageInput";
-import { useAnalytics } from "@/hooks/useAnalytics";
 
 import { canon } from "@/lib/textNormalize";
 import { supabase } from "@/lib/supabaseClient";
@@ -160,9 +159,6 @@ export default function Page2() {
   // 画像入力（file→dataURL）
   const { pickImageAsDataUrl } = useImageInput();
 
-  // 計測（任意）
-  const { trackImageSelected, trackOcrTextSelected } = useAnalytics();
-
   // OCR（imgSrcが入ると実行）
   const { boxes, loading, scale, onImgLoad } = useOCR(imgSrc);
 
@@ -272,22 +268,20 @@ export default function Page2() {
   /* 画像選択 */
   const handlePickFile = useCallback(
     async (file: File, source: "camera" | "file") => {
-      trackImageSelected(source, file.name);
       const dataUrl = await pickImageAsDataUrl(file);
       setImgSrc(dataUrl);
       setSelectedText("");
       resetAccident();
     },
-    [pickImageAsDataUrl, resetAccident, trackImageSelected]
+    [pickImageAsDataUrl, resetAccident]
   );
 
   /* boxをタップ */
   const handlePickText = useCallback(
     (text: string) => {
       setSelectedText(text);
-      if (text) trackOcrTextSelected(text);
     },
-    [trackOcrTextSelected]
+    []
   );
 
   /* ドロワー閉じる */
