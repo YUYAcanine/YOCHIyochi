@@ -8,16 +8,21 @@ type Variant = "forbidden" | "ok" | "none" | "child";
 
 type Props = {
   openText: string;
-  cookDescription: string;
-  childDescription: string;
+  description?: string;
+
+  cookDescription?: string;
+  childDescription?: string;
+
   phase: PhaseKey;
   variant: Variant;
-  cookVariant: Variant;
+  cookVariant?: Variant;
+
   onClose: () => void;
   onShowAccidentInfo?: () => void;
   accidentInfo?: string;
   showAccidentInfo?: boolean;
 };
+
 
 export default function BottomDrawer({
   openText,
