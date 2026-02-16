@@ -4,12 +4,21 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { event } from "@/lib/gtag"; // GAイベント送信用
 
 export default function Page1() {
   const router = useRouter();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [memberId, setMemberId] = useState<string | null>(null);
+  const [hiyariNews, setHiyariNews] = useState<
+    Array<{
+      id: number;
+      food_name: string;
+      detail: string | null;
+      created_at: string;
+    }>
+  >([]);
+  const [newsLoading, setNewsLoading] = useState(false);
+  const [newsError, setNewsError] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -33,6 +42,34 @@ export default function Page1() {
     return () => {
       window.removeEventListener("storage", handleStorage);
     };
+  }, [isLoggedIn, memberId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let cancelled = false;
+
+    const fetchNews = async () => {
+      setNewsLoading(true);
+      setNewsError(null);
+      try {
+        const res = await fetch("/api/meal-records?type=hiyari&limit=3", {
+          cache: "no-store",
+        });
+        if (!res.ok) throw new Error("fetch failed");
+        const json = await res.json();
+        if (cancelled) return;
+        setHiyariNews(Array.isArray(json) ? json : json.items ?? []);
+      } catch {
+        if (!cancelled) setNewsError("新着ニュースの取得に失敗しました");
+      } finally {
+        if (!cancelled) setNewsLoading(false);
+      }
+    };
+
+    fetchNews();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleLogout = () => {
@@ -48,19 +85,12 @@ export default function Page1() {
   };
 
   return (
-    <main className="relative min-h-screen bg-[#F0E4D8] grid grid-rows-[1fr_auto_1fr] justify-items-center px-6">
+    <main className="relative min-h-screen bg-[#F0E4D8] grid grid-rows-[auto_auto_1fr] justify-items-center px-6 pt-20 pb-10 gap-6">
       <div className={`top-actions ${isLoggedIn ? "top-actions-logged" : ""}`}>
         {!isLoggedIn && (
           <Link
-            href="/Login"
+            href="/login"
             className="btn-secondary fade-up-2"
-            onClick={() =>
-              event({
-                action: "login_click",
-                category: "button",
-                label: "page1 login",
-              })
-            }
           >
             マイページ
           </Link>
@@ -83,7 +113,7 @@ export default function Page1() {
         )}
       </div>
       {/* 上段：ロゴ（1.2倍大きく） */}
-      <div className="row-start-1 row-end-2 self-end mb-6 swoosh-in select-none">
+      <div className="row-start-1 row-end-2 self-start swoosh-in select-none">
         <Image
           src="/yoyochi.jpg" // /public 配下に置いたファイル
           alt="よちヨチ ロゴ"
@@ -95,37 +125,75 @@ export default function Page1() {
       </div>
 
       {/* 中段：メインボタン（中央） */}
-      <div className="row-start-2 row-end-3 place-self-center flex flex-col items-center gap-4">
+      <div className="row-start-2 row-end-3 self-start flex flex-col items-center gap-4">
         <Link
           href="/Select"
           className="btn-primary fade-up-1"
-          onClick={() =>
-            event({
-              action: "start_check_click",
-              category: "button",
-              label: "page1 main",
-            })
-          }
         >
-          チェックをはじめる
+          献立チェック
         </Link>
         {isLoggedIn && (
           <Link
             href="/Register"
             className="btn-secondary fade-up-3"
-            onClick={() =>
-              event({
-                action: "no_eat_register_click",
-                category: "button",
-                label: "page1 no_eat",
-              })
-            }
           >
-            食べられない食品を登録する
+            給食記録
           </Link>
         )}
       </div>
 
+      <div className="row-start-3 row-end-4 w-full max-w-2xl self-start">
+        <div className="rounded-2xl border border-[#E8DCD0] bg-[#F5EDE6] p-4 shadow-md">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-[#5C3A2E]">保育ニュース</h2>
+            <span className="text-xs font-semibold text-[#8A776A]">
+              ヒヤリハット速報
+            </span>
+          </div>
+
+          {newsLoading && (
+            <p className="text-sm text-[#6B5A4E] mt-3">読み込み中...</p>
+          )}
+          {newsError && <p className="text-sm text-red-600 mt-3">{newsError}</p>}
+
+          {!newsLoading && !newsError && (
+            <>
+              {hiyariNews.length > 0 ? (
+                <ul className="mt-4 space-y-3">
+                  {hiyariNews.map((item) => (
+                    <li
+                      key={item.id}
+                      className="rounded-xl border border-[#E8DCD0] bg-white p-3"
+                    >
+                      <div className="text-sm font-semibold text-[#4D3F36]">
+                        {item.food_name}
+                      </div>
+                      {item.detail && (
+                        <p className="text-sm text-[#6B5A4E] mt-1">{item.detail}</p>
+                      )}
+                      <div className="text-xs text-[#8A776A] mt-2">
+                        {new Date(item.created_at).toLocaleString()}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-[#6B5A4E] mt-3">
+                  新しいヒヤリハットはありません。
+                </p>
+              )}
+              <div className="mt-4 flex justify-end">
+                <Link
+                  href="/News"
+                  className="text-sm font-semibold text-[#6B5A4E] underline underline-offset-4 hover:opacity-70"
+                >
+                  すべて見る
+                </Link>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
 
       <style jsx global>{`
         /* ロゴ入場 */
@@ -232,10 +300,7 @@ export default function Page1() {
           font-size: 0.95rem;
           font-weight: 700;
           color: #6b5a4e;
-          background: #f5ede6;
-          border: 1px solid #d6c2b4;
-          padding: 0.3rem 0.6rem;
-          border-radius: 0.75rem;
+          padding: 0.1rem 0;
         }
         @media (max-width: 640px) {
           .top-actions {

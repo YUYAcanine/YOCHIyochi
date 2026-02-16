@@ -8,12 +8,12 @@
  * - 選択中は下部ドロワーに判定結果/事故情報を表示
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import Ribbon from "@/components/Ribbon";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import { useChecklist } from "@/components/checklist";
+import { PHASE_LABELS, useChecklist } from "@/components/checklist";
 
 import { Camera, Image as ImageIcon, Search } from "lucide-react";
 import type { ChangeEvent, ComponentProps } from "react";
@@ -26,9 +26,9 @@ import { useOCR } from "@/hooks/useOCR";
 import { useMenuData } from "@/hooks/useMenuData";
 import { useAccidentInfo } from "@/hooks/useAccidentInfo";
 import { useImageInput } from "@/hooks/useImageInput";
-import { useAnalytics } from "@/hooks/useAnalytics";
 
 import { canon } from "@/lib/textNormalize";
+import { supabase } from "@/lib/supabaseClient";
 import type { PhaseKey } from "@/types/food";
 
 /* 型：OcrImageの型から参照して揃える */
@@ -80,6 +80,17 @@ export default function Page2() {
   const { phase, childMode, children } = useChecklist();
 
   const [memberId, setMemberId] = useState<string | null>(null);
+  const [isEditingCook, setIsEditingCook] = useState(false);
+  const [cookDrafts, setCookDrafts] = useState<MenuInfo>({
+    phase1: "",
+    phase2: "",
+    phase3: "",
+    phase4: "",
+    phase5: "",
+  });
+  const [cookSaving, setCookSaving] = useState(false);
+  const [cookMessage, setCookMessage] = useState<string | null>(null);
+  const lastSelectedTextRef = useRef<string>("");
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -95,9 +106,10 @@ export default function Page2() {
   const drawerOpen = Boolean(selectedText);
 
   // 辞書データ（食品名→フェーズ別説明、食品名→ID）
-  const { menuMap, foodIdMap } = useMenuData() as {
+  const { menuMap, foodIdMap, updateMenuForKey } = useMenuData(memberId) as {
     menuMap: Record<string, MenuInfo>;
     foodIdMap: Record<string, number>;
+    updateMenuForKey: (key: string, phaseKey: keyof MenuInfo, value: string | null) => void;
   };
 
   const childFoodMap = useMemo(() => {
@@ -146,9 +158,6 @@ export default function Page2() {
 
   // 画像入力（file→dataURL）
   const { pickImageAsDataUrl } = useImageInput();
-
-  // 計測（任意）
-  const { trackImageSelected, trackOcrTextSelected } = useAnalytics();
 
   // OCR（imgSrcが入ると実行）
   const { boxes, loading, scale, onImgLoad } = useOCR(imgSrc);
@@ -220,31 +229,67 @@ export default function Page2() {
     return classify(selectedText);
   }, [selectedText, classify]);
 
+  const buildCookDrafts = useCallback(
+    (key: string | null): MenuInfo => {
+      if (!key) {
+        return { phase1: "", phase2: "", phase3: "", phase4: "", phase5: "" };
+      }
+      const info = menuMap[key];
+      return {
+        phase1: info?.phase1 ?? "",
+        phase2: info?.phase2 ?? "",
+        phase3: info?.phase3 ?? "",
+        phase4: info?.phase4 ?? "",
+        phase5: info?.phase5 ?? "",
+      };
+    },
+    [menuMap]
+  );
+
+  useEffect(() => {
+    const selectionChanged = selectedText !== lastSelectedTextRef.current;
+    if (!selectedText) {
+      setCookDrafts({ phase1: "", phase2: "", phase3: "", phase4: "", phase5: "" });
+      setCookMessage(null);
+      setIsEditingCook(false);
+      lastSelectedTextRef.current = "";
+      return;
+    }
+    if (!selectionChanged && isEditingCook) {
+      return;
+    }
+    const key = canon(selectedText);
+    setCookDrafts(buildCookDrafts(key));
+    setCookMessage(null);
+    setIsEditingCook(false);
+    lastSelectedTextRef.current = selectedText;
+  }, [selectedText, buildCookDrafts, isEditingCook]);
+
   /* 画像選択 */
   const handlePickFile = useCallback(
     async (file: File, source: "camera" | "file") => {
-      trackImageSelected(source, file.name);
       const dataUrl = await pickImageAsDataUrl(file);
       setImgSrc(dataUrl);
       setSelectedText("");
       resetAccident();
     },
-    [pickImageAsDataUrl, resetAccident, trackImageSelected]
+    [pickImageAsDataUrl, resetAccident]
   );
 
   /* boxをタップ */
   const handlePickText = useCallback(
     (text: string) => {
       setSelectedText(text);
-      if (text) trackOcrTextSelected(text);
     },
-    [trackOcrTextSelected]
+    []
   );
 
   /* ドロワー閉じる */
   const handleCloseDrawer = useCallback(() => {
     setSelectedText("");
     resetAccident();
+    setIsEditingCook(false);
+    setCookMessage(null);
   }, [resetAccident]);
 
   /* 画像リセット */
@@ -259,8 +304,90 @@ export default function Page2() {
     if (!selectedText) return;
     const key = canon(selectedText);
     const foodId = key ? foodIdMap[key] : null;
-    await fetchByFoodId(foodId);
-  }, [selectedText, foodIdMap, fetchByFoodId]);
+    await fetchByFoodId(foodId, memberId);
+  }, [selectedText, foodIdMap, fetchByFoodId, memberId]);
+
+  const handleHideAccident = useCallback(() => {
+    resetAccident();
+  }, [resetAccident]);
+
+  const handleStartEditCook = useCallback(() => {
+    setIsEditingCook(true);
+    setCookMessage(null);
+    const key = canon(selectedText);
+    setCookDrafts(buildCookDrafts(key));
+  }, [selectedText, buildCookDrafts]);
+
+  const handleCancelEditCook = useCallback(() => {
+    setIsEditingCook(false);
+    setCookMessage(null);
+    const key = canon(selectedText);
+    setCookDrafts(buildCookDrafts(key));
+  }, [selectedText, buildCookDrafts]);
+
+  const handleChangeCookDraft = useCallback((phaseKey: PhaseKey, value: string) => {
+    setCookDrafts((prev) => ({ ...prev, [phaseKey]: value }));
+  }, []);
+
+  const handleSaveCook = useCallback(async () => {
+    if (!selectedText) return;
+    const key = canon(selectedText);
+    if (!key) {
+      setCookMessage("調理情報の編集に失敗しました。");
+      return;
+    }
+    if (!memberId) {
+      setCookMessage("会員情報が見つかりません。");
+      return;
+    }
+    const foodId = foodIdMap[key];
+    if (!foodId) {
+      setCookMessage("調理情報の編集に必要なIDが見つかりません。");
+      return;
+    }
+
+    setCookSaving(true);
+    try {
+      const phaseKeys: PhaseKey[] = ["phase1", "phase2", "phase3", "phase4", "phase5"];
+      const requests = phaseKeys.map(async (phaseKey) => {
+        const value = (cookDrafts[phaseKey] ?? "").trim();
+        if (!value.length) {
+          const { error } = await supabase
+            .from("yochiyochi_cook_overrides")
+            .delete()
+            .eq("member_id", memberId)
+            .eq("food_id", foodId)
+            .eq("phase", phaseKey);
+          if (error) throw error;
+          updateMenuForKey(key, phaseKey, null);
+          return;
+        }
+
+        const { error } = await supabase
+          .from("yochiyochi_cook_overrides")
+          .upsert(
+            {
+              member_id: memberId,
+              food_id: foodId,
+              phase: phaseKey,
+              description: value,
+            },
+            { onConflict: "member_id,food_id,phase" }
+          );
+        if (error) throw error;
+        updateMenuForKey(key, phaseKey, value);
+      });
+
+      await Promise.all(requests);
+
+      setCookMessage("保存しました。");
+      setIsEditingCook(false);
+    } catch {
+      setCookMessage("保存に失敗しました。");
+    } finally {
+      setCookSaving(false);
+    }
+  }, [selectedText, foodIdMap, memberId, cookDrafts, updateMenuForKey]);
 
   /* 検索画面へ */
   const handleGoSearch = useCallback(() => {
@@ -353,6 +480,15 @@ export default function Page2() {
         }
       />
 
+      {imgSrc && (
+        <div className="absolute top-24 left-4 z-30">
+          <div className="flex items-center gap-2 rounded-full border border-[#D6C2B4] bg-white/90 px-3 py-1 text-xs font-semibold text-[#5C3A2E] shadow-sm">
+            <span>{childMode ? "園児モード" : "乳児期別モード"}</span>
+            {!childMode && <span>・{PHASE_LABELS[phase]}</span>}
+          </div>
+        </div>
+      )}
+
       <div className="flex-grow pt-24">
         {imgSrc ? (
           <OcrStage
@@ -382,8 +518,20 @@ export default function Page2() {
         cookVariant={selected.cookVariant}
         onClose={handleCloseDrawer}
         onShowAccident={handleShowAccident}
+        onHideAccident={handleHideAccident}
         accidentInfo={accidentInfo}
         showAccidentInfo={showAccidentInfo}
+        cookEditor={{
+          canEdit: Boolean(memberId),
+          isEditing: isEditingCook,
+          drafts: cookDrafts,
+          onChangePhase: handleChangeCookDraft,
+          onStart: handleStartEditCook,
+          onCancel: handleCancelEditCook,
+          onSave: handleSaveCook,
+          saving: cookSaving,
+          message: cookMessage,
+        }}
       />
 
       {loading && <LoadingSpinner />}

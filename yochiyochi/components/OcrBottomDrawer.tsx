@@ -29,9 +29,21 @@ type Props = {
 
   onClose: () => void;
   onShowAccident: () => void;
+  onHideAccident?: () => void;
 
   accidentInfo: string;
   showAccidentInfo: boolean;
+  cookEditor?: {
+    canEdit: boolean;
+    isEditing: boolean;
+    drafts: Partial<Record<PhaseKey, string>>;
+    onChangePhase: (phase: PhaseKey, value: string) => void;
+    onStart: () => void;
+    onCancel: () => void;
+    onSave: () => void;
+    saving: boolean;
+    message?: string | null;
+  };
 };
 
 export default function OcrBottomDrawer({
@@ -43,8 +55,10 @@ export default function OcrBottomDrawer({
   cookVariant,
   onClose,
   onShowAccident,
+  onHideAccident,
   accidentInfo,
   showAccidentInfo,
+  cookEditor,
 }: Props) {
   return (
     <BottomDrawer
@@ -56,8 +70,10 @@ export default function OcrBottomDrawer({
       cookVariant={cookVariant}
       onClose={onClose}
       onShowAccidentInfo={onShowAccident}
+      onHideAccidentInfo={onHideAccident}
       accidentInfo={accidentInfo}
       showAccidentInfo={showAccidentInfo}
+      cookEditor={cookEditor}
     />
   );
 }
