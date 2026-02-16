@@ -89,7 +89,7 @@ export default function Page1() {
       <div className={`top-actions ${isLoggedIn ? "top-actions-logged" : ""}`}>
         {!isLoggedIn && (
           <Link
-            href="/Login"
+            href="/login"
             className="btn-secondary fade-up-2"
           >
             マイページ
