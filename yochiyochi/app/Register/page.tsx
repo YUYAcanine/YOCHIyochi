@@ -1,36 +1,73 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import Ribbon from "@/components/Ribbon";
+import { ChevronDown, ChevronUp, Pencil, Search } from "lucide-react";
 import { useMenuData } from "@/hooks/useMenuData";
 import { canon } from "@/lib/textNormalize";
+import Ribbon from "@/components/Ribbon";
 
-type TabKey = "no-eat" | "meal";
+type RegisterTab = "child" | "cook" | "hiyari";
+
+type AnswerItem = {
+  id: number;
+  child_name: string;
+  age_month: number;
+  no_eat: string;
+  note: string | null;
+  created_at: string;
+};
+
+type MealItem = {
+  id: number;
+  child_name: string;
+  age_month: number;
+  food_name: string;
+  detail: string | null;
+  record_type: "growth" | "hiyari";
+  created_at: string;
+};
+
+const formatDateTime = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mi = String(date.getMinutes()).padStart(2, "0");
+  return `${yyyy}/${mm}/${dd} ${hh}:${mi}`;
+};
 
 export default function Page4() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<TabKey>("no-eat");
+  const [activeTab, setActiveTab] = useState<RegisterTab>("child");
 
   const [childName, setChildName] = useState("");
   const [ageMonth, setAgeMonth] = useState("");
   const [noEat, setNoEat] = useState("");
   const [note, setNote] = useState("");
-  const [msg, setMsg] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [isNoEatChecked, setIsNoEatChecked] = useState(true);
 
   const [mealChildName, setMealChildName] = useState("");
   const [mealAgeMonth, setMealAgeMonth] = useState("");
-  const [mealType, setMealType] = useState<"growth" | "hiyari">("growth");
   const [mealFood, setMealFood] = useState("");
   const [mealDetail, setMealDetail] = useState("");
-  const [mealMsg, setMealMsg] = useState<string | null>(null);
-  const [mealLoading, setMealLoading] = useState(false);
+
+  const [formMsg, setFormMsg] = useState<string | null>(null);
+  const [submitLoading, setSubmitLoading] = useState(false);
 
   const [authChecked, setAuthChecked] = useState(false);
   const [memberId, setMemberId] = useState<string | null>(null);
-  const [childOptions, setChildOptions] = useState<string[]>([]);
+
+  const [showForm, setShowForm] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const [expandedNames, setExpandedNames] = useState<Record<string, boolean>>({});
+
+  const [answerItems, setAnswerItems] = useState<AnswerItem[]>([]);
+  const [mealItems, setMealItems] = useState<MealItem[]>([]);
+  const [listLoading, setListLoading] = useState(false);
+  const [reloadTick, setReloadTick] = useState(0);
 
   const { foodIdMap } = useMenuData();
 
@@ -53,90 +90,189 @@ export default function Page4() {
   }, [router]);
 
   useEffect(() => {
-    if (!memberId) {
-      setChildOptions([]);
-      return;
-    }
+    if (!memberId) return;
+
     let cancelled = false;
-    const fetchChildren = async () => {
+    const fetchAll = async () => {
+      setListLoading(true);
       try {
-        const res = await fetch(
-          `/api/answers?member_id=${encodeURIComponent(memberId)}`,
-          { cache: "no-store" }
-        );
-        if (!res.ok) throw new Error("fetch failed");
-        const json = await res.json();
-        const items: Array<{ child_name?: string | null }> = Array.isArray(json)
-          ? json
-          : json.items ?? [];
+        const [answersRes, mealsRes] = await Promise.all([
+          fetch(`/api/answers?member_id=${encodeURIComponent(memberId)}`, {
+            cache: "no-store",
+          }),
+          fetch(`/api/meal-records?member_id=${encodeURIComponent(memberId)}&limit=200`, {
+            cache: "no-store",
+          }),
+        ]);
+
+        if (!answersRes.ok || !mealsRes.ok) throw new Error("fetch failed");
+
+        const answersJson = await answersRes.json();
+        const mealsJson = await mealsRes.json();
+
         if (cancelled) return;
-        const names = items
-          .map((item) => (item.child_name ?? "").trim())
-          .filter(Boolean);
-        const unique = Array.from(new Set(names));
-        setChildOptions(unique);
+
+        const nextAnswers = (Array.isArray(answersJson) ? answersJson : answersJson.items ?? []) as AnswerItem[];
+        const nextMeals = (Array.isArray(mealsJson) ? mealsJson : mealsJson.items ?? []) as MealItem[];
+
+        setAnswerItems(nextAnswers);
+        setMealItems(nextMeals);
       } catch {
-        if (!cancelled) setChildOptions([]);
+        if (!cancelled) {
+          setAnswerItems([]);
+          setMealItems([]);
+        }
+      } finally {
+        if (!cancelled) setListLoading(false);
       }
     };
 
-    fetchChildren();
+    fetchAll();
     return () => {
       cancelled = true;
     };
-  }, [memberId]);
+  }, [memberId, reloadTick]);
 
-  if (!authChecked) {
-    return null;
-  }
+  const childOptions = useMemo(() => {
+    const names = [
+      ...answerItems.map((item) => item.child_name),
+      ...mealItems.map((item) => item.child_name),
+    ]
+      .map((name) => name.trim())
+      .filter(Boolean);
+    return Array.from(new Set(names));
+  }, [answerItems, mealItems]);
 
-  const handleNoEatSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setMsg(null);
+  const namesForTab = useMemo(() => {
+    const latestMap = new Map<string, number>();
 
-    if (!childName || !ageMonth || !noEat || !memberId) {
-      setMsg("すべての項目を入力してください。");
+    const addLatest = (name: string, createdAt: string) => {
+      const t = new Date(createdAt).getTime();
+      const prev = latestMap.get(name) ?? 0;
+      if (t > prev) latestMap.set(name, t);
+    };
+
+    if (activeTab === "child") {
+      for (const item of answerItems) addLatest(item.child_name, item.created_at);
+      for (const item of mealItems.filter((item) => item.record_type === "hiyari")) {
+        addLatest(item.child_name, item.created_at);
+      }
+    } else {
+      const targetType = activeTab === "cook" ? "growth" : "hiyari";
+      for (const item of mealItems.filter((item) => item.record_type === targetType)) {
+        addLatest(item.child_name, item.created_at);
+      }
+    }
+
+    return Array.from(latestMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([name]) => name)
+      .filter((name) => name.toLowerCase().includes(searchText.trim().toLowerCase()));
+  }, [activeTab, answerItems, mealItems, searchText]);
+
+  useEffect(() => {
+    if (namesForTab.length === 0) {
+      setExpandedNames({});
       return;
     }
 
-    setLoading(true);
+    setExpandedNames((prev) => {
+      const next: Record<string, boolean> = {};
+      for (const name of namesForTab) {
+        next[name] = prev[name] ?? false;
+      }
+      return next;
+    });
+  }, [namesForTab]);
+
+  if (!authChecked) return null;
+
+  const toggleExpanded = (name: string) => {
+    setExpandedNames((prev) => ({ ...prev, [name]: !prev[name] }));
+  };
+
+  const resetForms = () => {
+    setChildName("");
+    setAgeMonth("");
+    setNoEat("");
+    setNote("");
+    setMealChildName("");
+    setMealAgeMonth("");
+    setMealFood("");
+    setMealDetail("");
+    setIsNoEatChecked(true);
+    setFormMsg(null);
+  };
+
+  const openEditorForName = (name: string) => {
+    const answer = answerItems.find((item) => item.child_name === name);
+    const meal = mealItems.find((item) => item.child_name === name);
+    const month = answer?.age_month ?? meal?.age_month ?? "";
+
+    if (activeTab === "child") {
+      setChildName(name);
+      setAgeMonth(month ? String(month) : "");
+      setNoEat(answer?.no_eat ?? "");
+      setNote(answer?.note ?? "");
+    } else {
+      setMealChildName(name);
+      setMealAgeMonth(month ? String(month) : "");
+      setMealFood(meal?.food_name ?? "");
+      setMealDetail(meal?.detail ?? "");
+    }
+
+    setShowForm(true);
+    setFormMsg(null);
+  };
+
+  const handleChildSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormMsg(null);
+
+    if (!childName || !ageMonth || !noEat || !memberId) {
+      setFormMsg("すべての必須項目を入力してください。");
+      return;
+    }
+
+    setSubmitLoading(true);
     try {
+      const body = {
+        child_name: childName,
+        age_month: Number(ageMonth),
+        no_eat: isNoEatChecked ? noEat : "",
+        note,
+        member_id: memberId,
+      };
+
       const res = await fetch("/api/answers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          child_name: childName,
-          age_month: Number(ageMonth),
-          no_eat: noEat,
-          note,
-          member_id: memberId,
-        }),
+        body: JSON.stringify(body),
       });
 
-      if (!res.ok) throw new Error("保存に失敗しました");
+      if (!res.ok) throw new Error("save failed");
 
-      setMsg("登録しました。");
-      setChildName("");
-      setAgeMonth("");
-      setNoEat("");
-      setNote("");
+      setFormMsg("登録しました。");
+      setReloadTick((prev) => prev + 1);
+      resetForms();
+      setShowForm(false);
     } catch {
-      setMsg("保存に失敗しました。");
+      setFormMsg("登録に失敗しました。");
     } finally {
-      setLoading(false);
+      setSubmitLoading(false);
     }
   };
 
   const handleMealSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMealMsg(null);
+    setFormMsg(null);
 
     if (!mealChildName || !mealAgeMonth || !mealFood || !mealDetail || !memberId) {
-      setMealMsg("すべての項目を入力してください。");
+      setFormMsg("すべての必須項目を入力してください。");
       return;
     }
 
-    setMealLoading(true);
+    setSubmitLoading(true);
     try {
       const res = await fetch("/api/meal-records", {
         method: "POST",
@@ -144,7 +280,7 @@ export default function Page4() {
         body: JSON.stringify({
           child_name: mealChildName,
           age_month: Number(mealAgeMonth),
-          record_type: mealType,
+          record_type: activeTab === "cook" ? "growth" : "hiyari",
           food_name: mealFood,
           detail: mealDetail,
           food_id: mealFoodId,
@@ -152,223 +288,391 @@ export default function Page4() {
         }),
       });
 
-      if (!res.ok) throw new Error("保存に失敗しました");
+      if (!res.ok) throw new Error("save failed");
 
-      setMealMsg("登録しました。");
-      setMealChildName("");
-      setMealAgeMonth("");
-      setMealFood("");
-      setMealDetail("");
-      setMealType("growth");
+      setFormMsg("登録しました。");
+      setReloadTick((prev) => prev + 1);
+      resetForms();
+      setShowForm(false);
     } catch {
-      setMealMsg("保存に失敗しました。");
+      setFormMsg("登録に失敗しました。");
     } finally {
-      setMealLoading(false);
+      setSubmitLoading(false);
     }
   };
 
-  return (
-    <main className="min-h-screen bg-[#FAF8F6] text-[#4D3F36] relative">
-      <Ribbon
-        href="/"
-        logoSrc="/yoyochi.jpg"
-        alt="よちヨチ ロゴ"
-        heightClass="h-24"
-        bgClass="bg-[#F0E4D8]"
-        logoClassName="h-20 w-auto object-contain"
-        rightContent={
-          memberId ? (
-            <span className="text-sm font-semibold text-[#6B5A4E]">
-              {memberId}さんのページ
-            </span>
-          ) : null
-        }
-      />
+  const renderChildPanel = (name: string) => {
+    const noEatItems = answerItems.filter((item) => item.child_name === name);
+    const hiyariItems = mealItems.filter(
+      (item) => item.child_name === name && item.record_type === "hiyari"
+    );
+    const month = noEatItems[0]?.age_month ?? hiyariItems[0]?.age_month ?? "-";
 
-      <div className="pt-24 px-6 pb-10 flex flex-col items-center">
-        <div className="w-full max-w-2xl mb-6">
-          <h1 className="text-xl font-bold text-[#4D3F36]">給食記録</h1>
-          <div className="mt-4 flex gap-2 w-full">
-            <button
-              type="button"
-              onClick={() => setActiveTab("no-eat")}
-              className={`flex-1 px-4 py-2 rounded-xl font-semibold border transition ${
-                activeTab === "no-eat"
-                  ? "bg-[#9C7B6C] text-white border-[#9C7B6C]"
-                  : "bg-white text-[#6B5A4E] border-[#D6C2B4] hover:bg-[#F5EDE6]"
-              }`}
-            >
-              食べられない食品登録
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("meal")}
-              className={`flex-1 px-4 py-2 rounded-xl font-semibold border transition ${
-                activeTab === "meal"
-                  ? "bg-[#9C7B6C] text-white border-[#9C7B6C]"
-                  : "bg-white text-[#6B5A4E] border-[#D6C2B4] hover:bg-[#F5EDE6]"
-              }`}
-            >
-              園児の食事記録
-            </button>
-          </div>
+    return (
+      <div key={name} className="rounded-md bg-[#F3F3F3] p-4">
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => toggleExpanded(name)}
+            className="flex items-center gap-2 text-left text-lg font-bold text-[#2f2a27]"
+          >
+            {name}
+            {expandedNames[name] ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+          </button>
+          <button
+            type="button"
+            onClick={() => openEditorForName(name)}
+            className="rounded p-1 text-[#2f2a27] hover:bg-[#e7ddd3]"
+            aria-label={`${name}を編集`}
+          >
+            <Pencil size={18} />
+          </button>
         </div>
 
-        {activeTab === "no-eat" && (
-          <form
-            onSubmit={handleNoEatSubmit}
-            className="w-full max-w-md bg-white rounded-2xl border border-[#E8DCD0] shadow-md p-6 space-y-4"
-          >
-            <h2 className="text-lg font-bold">食べられない食品の登録</h2>
+        {expandedNames[name] && (
+          <div className="mt-4 space-y-5">
+            <div className="flex items-center justify-between text-[#2f2a27]">
+              <h3 className="text-lg font-bold">注意する食材</h3>
+              <span className="text-lg font-semibold">月齢 : {month}</span>
+            </div>
 
-            <label className="block">
-              園児の名前
-              <input
-                type="text"
-                list="child-name-options"
-                className="mt-1 block w-full rounded-lg border border-[#D3C5B9] bg-[#FFF9F5] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#C7A690]"
-                value={childName}
-                onChange={(e) => setChildName(e.target.value)}
-                placeholder="例：山田 太郎"
-              />
-            </label>
+            {noEatItems.length > 0 ? (
+              <div className="space-y-2">
+                {noEatItems.map((item) => (
+                  <div key={item.id} className="rounded-md bg-[#f3e9e9] p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-base font-bold text-[#2f2a27]">{item.no_eat}</p>
+                        {item.note && <p className="text-sm text-[#2f2a27]">{item.note}</p>}
+                      </div>
+                      <p className="text-xl font-semibold text-[#dd3019]">食べられない</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-[#6b5a4e]">未登録です。</p>
+            )}
 
-            <label className="block">
-              園児の月齢
-              <input
-                type="number"
-                min={0}
-                className="mt-1 block w-full rounded-lg border border-[#D3C5B9] bg-[#FFF9F5] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#C7A690]"
-                value={ageMonth}
-                onChange={(e) => setAgeMonth(e.target.value)}
-                placeholder="例：18"
-              />
-            </label>
-
-            <label className="block">
-              食べられない食品
-              <input
-                type="text"
-                className="mt-1 block w-full rounded-lg border border-[#D3C5B9] bg-[#FFF9F5] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#C7A690]"
-                value={noEat}
-                onChange={(e) => setNoEat(e.target.value)}
-                placeholder="例：卵、牛乳"
-              />
-            </label>
-
-            <label className="block">
-              備考（食べられない理由など）
-              <textarea
-                className="mt-1 block w-full rounded-lg border border-[#D3C5B9] bg-[#FFF9F5] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#C7A690]"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="例：アレルギーのため"
-                rows={3}
-              />
-            </label>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-[#9C7B6C] text-white py-3 rounded-xl font-semibold hover:bg-[#A88877] disabled:opacity-60"
-            >
-              {loading ? "送信中..." : "登録する"}
-            </button>
-
-            {msg && <p className="text-sm mt-2 text-[#6B5A4E]">{msg}</p>}
-          </form>
+            <div>
+              <h3 className="mb-2 text-lg font-bold text-[#2f2a27]">ヒヤリハット</h3>
+              {hiyariItems.length > 0 ? (
+                <div className="space-y-2">
+                  {hiyariItems.slice(0, 3).map((item) => (
+                    <div key={item.id} className="rounded-md bg-[#efe4c5] p-3">
+                      <p className="text-base font-bold text-[#2f2a27]">{item.food_name}</p>
+                      {item.detail && <p className="text-sm text-[#2f2a27]">{item.detail}</p>}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-[#6b5a4e]">ヒヤリハット記録はありません。</p>
+              )}
+            </div>
+          </div>
         )}
+      </div>
+    );
+  };
 
-        {activeTab === "meal" && (
-          <form
-            onSubmit={handleMealSubmit}
-            className="w-full max-w-md bg-white rounded-2xl border border-[#E8DCD0] shadow-md p-6 space-y-4"
+  const renderMealPanel = (name: string, type: "growth" | "hiyari") => {
+    const items = mealItems.filter(
+      (item) => item.child_name === name && item.record_type === type
+    );
+    const month = items[0]?.age_month ?? "-";
+
+    return (
+      <div key={name} className="rounded-md bg-[#F3F3F3] p-4">
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => toggleExpanded(name)}
+            className="flex items-center gap-2 text-left text-lg font-bold text-[#2f2a27]"
           >
-            <h2 className="text-lg font-bold">園児の食事記録</h2>
+            {name}
+            {expandedNames[name] ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+          </button>
+          <button
+            type="button"
+            onClick={() => openEditorForName(name)}
+            className="rounded p-1 text-[#2f2a27] hover:bg-[#e7ddd3]"
+            aria-label={`${name}を編集`}
+          >
+            <Pencil size={18} />
+          </button>
+        </div>
 
-            <label className="block">
-              園児の名前
-              <input
-                type="text"
-                list="child-name-options"
-                className="mt-1 block w-full rounded-lg border border-[#D3C5B9] bg-[#FFF9F5] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#C7A690]"
-                value={mealChildName}
-                onChange={(e) => setMealChildName(e.target.value)}
-                placeholder="例：山田 太郎"
-              />
-            </label>
-
-            <label className="block">
-              園児の月齢
-              <input
-                type="number"
-                min={0}
-                className="mt-1 block w-full rounded-lg border border-[#D3C5B9] bg-[#FFF9F5] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#C7A690]"
-                value={mealAgeMonth}
-                onChange={(e) => setMealAgeMonth(e.target.value)}
-                placeholder="例：18"
-              />
-            </label>
-
-            <label className="block">
-              記録の種類
-              <select
-                className="mt-1 block w-full rounded-lg border border-[#D3C5B9] bg-[#FFF9F5] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#C7A690]"
-                value={mealType}
-                onChange={(e) => setMealType(e.target.value as "growth" | "hiyari")}
-              >
-                <option value="growth">成長キャッチ</option>
-                <option value="hiyari">ヒヤリハット</option>
-              </select>
-            </label>
-
-            <label className="block">
-              該当した食べ物
-              <input
-                type="text"
-                className="mt-1 block w-full rounded-lg border border-[#D3C5B9] bg-[#FFF9F5] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#C7A690]"
-                value={mealFood}
-                onChange={(e) => setMealFood(e.target.value)}
-                placeholder="例：ぶどう"
-              />
-            </label>
-
-            <label className="block">
-              具体的な内容
-              <textarea
-                className="mt-1 block w-full rounded-lg border border-[#D3C5B9] bg-[#FFF9F5] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#C7A690]"
-                value={mealDetail}
-                onChange={(e) => setMealDetail(e.target.value)}
-                placeholder="例：皮が口に残って咳き込んだため、半分に切って提供"
-                rows={4}
-              />
-            </label>
-
-            <button
-              type="submit"
-              disabled={mealLoading}
-              className="w-full bg-[#9C7B6C] text-white py-3 rounded-xl font-semibold hover:bg-[#A88877] disabled:opacity-60"
-            >
-              {mealLoading ? "送信中..." : "記録する"}
-            </button>
-
-            {mealMsg && <p className="text-sm mt-2 text-[#6B5A4E]">{mealMsg}</p>}
-          </form>
+        {expandedNames[name] && (
+          <div className="mt-4 space-y-2">
+            <div className="flex items-center justify-between text-[#2f2a27]">
+              <h3 className="text-lg font-bold">
+                {type === "growth" ? "調理方法" : "ヒヤリハット"}
+              </h3>
+              <span className="text-lg font-semibold">月齢 : {month}</span>
+            </div>
+            {items.length > 0 ? (
+              items.slice(0, 5).map((item) => (
+                <div
+                  key={item.id}
+                  className={`rounded-md p-3 ${
+                    type === "growth" ? "bg-[#eef1da]" : "bg-[#efe4c5]"
+                  }`}
+                >
+                  <p className="text-base font-bold text-[#2f2a27]">{item.food_name}</p>
+                  {item.detail && <p className="text-sm text-[#2f2a27]">{item.detail}</p>}
+                  <p className="mt-1 text-xs text-[#6b5a4e]">{formatDateTime(item.created_at)}</p>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-[#6b5a4e]">記録がありません。</p>
+            )}
+          </div>
         )}
+      </div>
+    );
+  };
 
-        <div className="flex flex-wrap gap-3 mt-6">
-          <Link
-            href="/"
-            className="inline-flex items-center justify-center rounded-xl border border-[#D6C2B4] bg-[#F5EDE6] px-5 py-2 font-semibold text-[#6B5A4E] shadow-sm transition hover:bg-[#E7DBCF]"
+  return (
+    <main className="min-h-screen bg-[#FAF8F6] text-[#2f2a27]">
+      <div className="mx-auto w-full max-w-4xl pb-8">
+        <Ribbon
+          href="/"
+          logoSrc="/yoyochi.jpg"
+          alt="よちヨチ ロゴ"
+          heightClass="h-24"
+          bgClass="bg-[#F0E4D8]"
+          logoClassName="h-20 w-auto object-contain"
+          rightContent={
+            memberId ? (
+              <p className="text-sm font-semibold text-[#2f2a27]">{memberId}さんのページ</p>
+            ) : null
+          }
+        />
+
+        <div className="px-3 pt-28 sm:px-5">
+          <div className="grid grid-cols-3 gap-1 border-b-[6px] border-[#b79074]">
+            <button
+              type="button"
+              onClick={() => setActiveTab("child")}
+              className={`rounded-t-md py-2 text-base font-bold ${
+                activeTab === "child" ? "bg-[#B79074] text-white" : "bg-[#ece4dc] text-[#7d7570]"
+              }`}
+            >
+              園児情報
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("cook")}
+              className={`rounded-t-md py-2 text-base font-bold ${
+                activeTab === "cook" ? "bg-[#B79074] text-white" : "bg-[#ece4dc] text-[#7d7570]"
+              }`}
+            >
+              調理方法
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("hiyari")}
+              className={`rounded-t-md py-2 text-base font-bold ${
+                activeTab === "hiyari" ? "bg-[#B79074] text-white" : "bg-[#ece4dc] text-[#7d7570]"
+              }`}
+            >
+              ヒヤリハット
+            </button>
+          </div>
+
+          <div className="mt-3 flex gap-1">
+            <input
+              type="text"
+              placeholder="園児名を入力してください"
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              className="h-12 w-full rounded-sm border-[3px] border-[#b79074] bg-[#FAF8F6] px-3 text-base outline-none placeholder:text-[#b7aea6]"
+            />
+            <button
+              type="button"
+              className="flex h-12 w-12 items-center justify-center rounded-sm bg-[#B79074] text-white"
+              aria-label="検索"
+            >
+              <Search size={26} />
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setShowForm((prev) => !prev);
+              setFormMsg(null);
+            }}
+            className="mt-6 w-full rounded-sm bg-[#B79074] py-2 text-3xl font-bold text-white"
           >
-            ホームに戻る
-          </Link>
-          <Link
-            href="/Table"
-            className="inline-flex items-center justify-center rounded-xl bg-[#9C7B6C] px-5 py-2 font-semibold text-white shadow-sm transition hover:bg-[#A88877]"
-          >
-            園児情報の確認
-          </Link>
+            園児登録
+          </button>
+
+          {showForm && (
+            <div className="rounded-b-md border-x-[3px] border-b-[3px] border-[#b79074] bg-[#f0f0f0] p-4">
+              {activeTab === "child" ? (
+                <form onSubmit={handleChildSubmit} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <label className="text-base font-bold text-[#2f2a27]">
+                      園児名
+                      <input
+                        type="text"
+                        list="child-name-options"
+                        value={childName}
+                        onChange={(e) => setChildName(e.target.value)}
+                        className="mt-1 h-11 w-full rounded border-[3px] border-[#7f7f7f] bg-transparent px-2"
+                      />
+                    </label>
+                    <label className="text-base font-bold text-[#2f2a27]">
+                      月齢
+                      <input
+                        type="number"
+                        min={0}
+                        value={ageMonth}
+                        onChange={(e) => setAgeMonth(e.target.value)}
+                        className="mt-1 h-11 w-full rounded border-[3px] border-[#7f7f7f] bg-transparent px-2"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="grid grid-cols-[1fr_auto] items-end gap-5">
+                    <label className="text-base font-bold text-[#2f2a27]">
+                      食材名 (選択)
+                      <input
+                        type="text"
+                        value={noEat}
+                        onChange={(e) => setNoEat(e.target.value)}
+                        className="mt-1 h-11 w-full rounded border-[3px] border-[#7f7f7f] bg-transparent px-2"
+                      />
+                    </label>
+                    <label className="mb-2 inline-flex items-center gap-2 text-2xl font-semibold text-[#2f2a27]">
+                      <input
+                        type="checkbox"
+                        checked={isNoEatChecked}
+                        onChange={(e) => setIsNoEatChecked(e.target.checked)}
+                        className="h-6 w-6 rounded border-[3px] border-[#333]"
+                      />
+                      食べられない
+                    </label>
+                  </div>
+
+                  <label className="block text-base font-bold text-[#2f2a27]">
+                    具体的な内容 (注意事項等)
+                    <textarea
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                      rows={4}
+                      className="mt-1 w-full rounded border-[3px] border-[#7f7f7f] bg-transparent p-2"
+                    />
+                  </label>
+
+                  <div className="grid grid-cols-2 gap-4 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        resetForms();
+                        setShowForm(false);
+                      }}
+                      className="h-12 rounded border-[3px] border-[#B79074] bg-[#FAF8F6] text-4xl font-bold text-[#B79074]"
+                    >
+                      キャンセル
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submitLoading}
+                      className="h-12 rounded bg-[#B79074] text-4xl font-bold text-white disabled:opacity-70"
+                    >
+                      {submitLoading ? "送信中" : "登録"}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <form onSubmit={handleMealSubmit} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <label className="text-base font-bold text-[#2f2a27]">
+                      園児名
+                      <input
+                        type="text"
+                        list="child-name-options"
+                        value={mealChildName}
+                        onChange={(e) => setMealChildName(e.target.value)}
+                        className="mt-1 h-11 w-full rounded border-[3px] border-[#7f7f7f] bg-transparent px-2"
+                      />
+                    </label>
+                    <label className="text-base font-bold text-[#2f2a27]">
+                      月齢
+                      <input
+                        type="number"
+                        min={0}
+                        value={mealAgeMonth}
+                        onChange={(e) => setMealAgeMonth(e.target.value)}
+                        className="mt-1 h-11 w-full rounded border-[3px] border-[#7f7f7f] bg-transparent px-2"
+                      />
+                    </label>
+                  </div>
+
+                  <label className="block text-base font-bold text-[#2f2a27]">
+                    食材名 (選択)
+                    <input
+                      type="text"
+                      value={mealFood}
+                      onChange={(e) => setMealFood(e.target.value)}
+                      className="mt-1 h-11 w-full rounded border-[3px] border-[#7f7f7f] bg-transparent px-2"
+                    />
+                  </label>
+
+                  <label className="block text-base font-bold text-[#2f2a27]">
+                    具体的な内容 (注意事項等)
+                    <textarea
+                      value={mealDetail}
+                      onChange={(e) => setMealDetail(e.target.value)}
+                      rows={4}
+                      className="mt-1 w-full rounded border-[3px] border-[#7f7f7f] bg-transparent p-2"
+                    />
+                  </label>
+
+                  <div className="grid grid-cols-2 gap-4 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        resetForms();
+                        setShowForm(false);
+                      }}
+                      className="h-12 rounded border-[3px] border-[#B79074] bg-[#FAF8F6] text-4xl font-bold text-[#B79074]"
+                    >
+                      キャンセル
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submitLoading}
+                      className="h-12 rounded bg-[#B79074] text-4xl font-bold text-white disabled:opacity-70"
+                    >
+                      {submitLoading ? "送信中" : "登録"}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {formMsg && <p className="mt-3 text-sm text-[#6b5a4e]">{formMsg}</p>}
+            </div>
+          )}
+
+          <section className="mt-5 space-y-3">
+            {listLoading && <p className="text-sm text-[#6b5a4e]">読み込み中...</p>}
+
+            {!listLoading && namesForTab.length === 0 && (
+              <p className="rounded-md bg-[#F3F3F3] p-4 text-sm text-[#6b5a4e]">
+                表示できるデータがありません。
+              </p>
+            )}
+
+            {!listLoading &&
+              namesForTab.map((name) =>
+                activeTab === "child"
+                  ? renderChildPanel(name)
+                  : renderMealPanel(name, activeTab === "cook" ? "growth" : "hiyari")
+              )}
+          </section>
         </div>
       </div>
 
@@ -380,4 +684,5 @@ export default function Page4() {
     </main>
   );
 }
+
 
