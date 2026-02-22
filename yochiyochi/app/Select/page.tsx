@@ -115,6 +115,7 @@ export default function Page2() {
   const childFoodMap = useMemo(() => {
     const map = new Map<string, Array<{ name: string; note: string | null }>>();
     for (const child of children) {
+      if (child.can_eat === true) continue;
       const items = (child.no_eat ?? "")
         .split(/[,\s/\u3001\u30fb\uFF0C\uFF0F]+/)
         .map((item) => canon(item))

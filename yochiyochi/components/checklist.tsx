@@ -51,6 +51,7 @@ type ChildItem = {
   child_name: string;
   age_month: number;
   no_eat: string;
+  can_eat: boolean | null;
   note: string | null;
 };
 
@@ -137,7 +138,7 @@ export function ChecklistProvider({ children }: { children: React.ReactNode }) {
       }
       setChildrenLoading(true);
       try {
-        const res = await fetch(`/api/answers?member_id=${encodeURIComponent(memberId)}`, {
+        const res = await fetch(`/api/enji-info?member_id=${encodeURIComponent(memberId)}`, {
           cache: "no-store",
         });
         if (!res.ok) throw new Error("fetch failed");
@@ -357,4 +358,5 @@ export function ChecklistPanel() {
     </>
   );
 }
+
 
