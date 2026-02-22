@@ -455,7 +455,7 @@ export default function Page4() {
     const month = noEatItems[0]?.age_month ?? hiyariItems[0]?.age_month ?? "-";
 
     return (
-      <div key={name} className="rounded-md bg-[#F3F3F3] p-4">
+      <div key={name} className="rounded-md border border-[#E6D7C8] bg-white p-4">
         <div
           role="button"
           tabIndex={0}
@@ -505,7 +505,7 @@ export default function Page4() {
             </div>
 
             {foodEditTargetName === name && (
-              <form onSubmit={handleInlineFoodSubmit} className="space-y-4 rounded-md bg-[#efefef] p-4">
+              <form onSubmit={handleInlineFoodSubmit} className="space-y-4 rounded-md bg-white p-4">
                 <div className="grid grid-cols-2 gap-4">
                   <label className="text-base font-medium text-[#2f2a27]">
                     園児名
@@ -563,14 +563,14 @@ export default function Page4() {
                   <button
                     type="button"
                     onClick={closeInlineEditor}
-                    className="h-12 rounded border-[3px] border-[#B79074] bg-[#FAF8F6] text-xl font-semibold text-[#B79074]"
+                    className="h-12 rounded border-[3px] border-[#B79074] bg-[#FFFAF2] text-base font-bold text-[#B79074]"
                   >
                     キャンセル
                   </button>
                   <button
                     type="submit"
                     disabled={submitLoading}
-                    className="h-12 rounded bg-[#B79074] text-xl font-semibold text-white disabled:opacity-70"
+                    className="h-12 rounded bg-[#B79074] text-base font-bold text-white disabled:opacity-70"
                   >
                     {submitLoading ? "送信中" : editingAnswerId ? "更新" : "保存"}
                   </button>
@@ -626,7 +626,7 @@ export default function Page4() {
                 <h3 className="mb-2 text-base font-bold text-[#2f2a27]">ヒヤリハット</h3>
                 <div className="space-y-2">
                   {hiyariItems.slice(0, 3).map((item) => (
-                    <div key={item.id} className="rounded-md bg-[#efe4c5] p-3">
+                    <div key={item.id} className="rounded-md border border-[#E6D7C8] bg-[#F9F4E8] p-3">
                       <p className="text-base font-bold text-[#2f2a27]">{item.food_name}</p>
                       {item.detail && <p className="text-sm text-[#2f2a27]">{item.detail}</p>}
                     </div>
@@ -647,7 +647,7 @@ export default function Page4() {
     const month = items[0]?.age_month ?? "-";
 
     return (
-      <div key={name} className="rounded-md bg-[#F3F3F3] p-4">
+      <div key={name} className="rounded-md border border-[#E6D7C8] bg-white p-4">
         <div
           role="button"
           tabIndex={0}
@@ -699,8 +699,8 @@ export default function Page4() {
               items.slice(0, 5).map((item) => (
                 <div
                   key={item.id}
-                  className={`rounded-md p-3 ${
-                    type === "growth" ? "bg-[#eef1da]" : "bg-[#efe4c5]"
+                  className={`rounded-md border border-[#E6D7C8] p-3 ${
+                    type === "growth" ? "bg-[#eef1da]" : "bg-[#F9F4E8]"
                   }`}
                 >
                   <p className="text-base font-bold text-[#2f2a27]">{item.food_name}</p>
@@ -718,7 +718,7 @@ export default function Page4() {
   };
 
   return (
-    <main className="min-h-screen bg-[#FAF8F6] text-[#2f2a27]">
+    <main className="min-h-screen bg-[#FFFAF2] text-[#2f2a27]">
       <div className="mx-auto w-full max-w-4xl pb-8">
         <Ribbon
           href="/"
@@ -771,7 +771,7 @@ export default function Page4() {
               placeholder="園児名を入力してください"
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
-              className="h-12 w-full rounded-sm border-[3px] border-[#b79074] bg-[#FAF8F6] px-3 text-base outline-none placeholder:text-[#b7aea6]"
+              className="h-12 w-full rounded-sm border-[3px] border-[#b79074] bg-[#FFFAF2] px-3 text-base outline-none placeholder:text-[#b7aea6]"
             />
             <button
               type="button"
@@ -791,13 +791,13 @@ export default function Page4() {
               setShowForm((prev) => !prev);
               setFormMsg(null);
             }}
-            className="mt-6 w-full rounded-sm bg-[#B79074] py-2 text-xl font-semibold text-white"
+            className="mt-6 w-full rounded-sm bg-[#B79074] py-2 text-base font-bold text-white"
           >
             園児追加
           </button>
 
           {showForm && (
-            <div className="rounded-b-md border-x-[3px] border-b-[3px] border-[#b79074] bg-[#f0f0f0] p-4">
+            <div className="rounded-b-md border-x-[3px] border-b-[3px] border-[#b79074] bg-white p-4">
               {activeTab === "child" ? (
                 <form onSubmit={handleChildSubmit} className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
@@ -830,14 +830,14 @@ export default function Page4() {
                         resetForms();
                         setShowForm(false);
                       }}
-                      className="h-12 rounded border-[3px] border-[#B79074] bg-[#FAF8F6] text-xl font-semibold text-[#B79074]"
+                      className="h-12 rounded border-[3px] border-[#B79074] bg-[#FFFAF2] text-base font-bold text-[#B79074]"
                     >
                       キャンセル
                     </button>
                     <button
                       type="submit"
                       disabled={submitLoading}
-                      className="h-12 rounded bg-[#B79074] text-xl font-semibold text-white disabled:opacity-70"
+                      className="h-12 rounded bg-[#B79074] text-base font-bold text-white disabled:opacity-70"
                     >
                       {submitLoading ? "送信中" : "登録"}
                     </button>
@@ -895,14 +895,14 @@ export default function Page4() {
                         resetForms();
                         setShowForm(false);
                       }}
-                      className="h-12 rounded border-[3px] border-[#B79074] bg-[#FAF8F6] text-xl font-semibold text-[#B79074]"
+                      className="h-12 rounded border-[3px] border-[#B79074] bg-[#FFFAF2] text-base font-bold text-[#B79074]"
                     >
                       キャンセル
                     </button>
                     <button
                       type="submit"
                       disabled={submitLoading}
-                      className="h-12 rounded bg-[#B79074] text-xl font-semibold text-white disabled:opacity-70"
+                      className="h-12 rounded bg-[#B79074] text-base font-bold text-white disabled:opacity-70"
                     >
                       {submitLoading ? "送信中" : "登録"}
                     </button>
@@ -941,6 +941,10 @@ export default function Page4() {
     </main>
   );
 }
+
+
+
+
 
 
 
