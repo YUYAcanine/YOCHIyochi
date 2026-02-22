@@ -137,7 +137,7 @@ export default function Page1() {
   };
 
   return (
-    <main className="min-h-screen bg-[#FAF8F6] px-4 py-6 text-[#2e2a28] sm:px-8">
+    <main className="min-h-screen bg-[#FFFAF2] px-4 py-6 text-[#2e2a28] sm:px-8">
       <div className="mx-auto w-full max-w-5xl">
         <div className="mb-2 flex justify-end">
           {!isLoggedIn ? (
@@ -210,9 +210,9 @@ export default function Page1() {
               {hiyariNews.length > 0 ? (
                 <ul className="space-y-3">
                   {hiyariNews.map((item, index) => (
-                    <li key={item.id} className="rounded-lg bg-[#FAF8F6] p-3">
+                    <li key={item.id} className="rounded-lg border border-[#E6D7C8] bg-white p-3">
                       <div className="flex items-start justify-between gap-3">
-                        <div className="text-sm font-semibold text-[#2f2b28] sm:text-base">
+                        <div className="text-sm font-semibold text-[#5C3A2E] sm:text-base">
                           {item.food_name}
                         </div>
                         {index === 0 && (
@@ -252,6 +252,10 @@ export default function Page1() {
     </main>
   );
 }
+
+
+
+
 
 
 
