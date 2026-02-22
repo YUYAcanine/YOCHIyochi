@@ -563,7 +563,7 @@ export default function Page4() {
                   <button
                     type="button"
                     onClick={closeInlineEditor}
-                    className="h-12 rounded border-[3px] border-[#B79074] bg-[#FFFAF2] text-base font-bold text-[#B79074]"
+                    className="h-12 rounded border-[3px] border-[#B79074] bg-[#FFFDF8] text-base font-bold text-[#B79074]"
                   >
                     キャンセル
                   </button>
@@ -718,7 +718,7 @@ export default function Page4() {
   };
 
   return (
-    <main className="min-h-screen bg-[#FFFAF2] text-[#2f2a27]">
+    <main className="min-h-screen bg-[#FFFDF8] text-[#2f2a27]">
       <div className="mx-auto w-full max-w-4xl pb-8">
         <Ribbon
           href="/"
@@ -771,7 +771,7 @@ export default function Page4() {
               placeholder="園児名を入力してください"
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
-              className="h-12 w-full rounded-sm border-[3px] border-[#b79074] bg-[#FFFAF2] px-3 text-base outline-none placeholder:text-[#b7aea6]"
+              className="h-12 w-full rounded-sm border-[3px] border-[#b79074] bg-[#FFFDF8] px-3 text-base outline-none placeholder:text-[#b7aea6]"
             />
             <button
               type="button"
@@ -830,7 +830,7 @@ export default function Page4() {
                         resetForms();
                         setShowForm(false);
                       }}
-                      className="h-12 rounded border-[3px] border-[#B79074] bg-[#FFFAF2] text-base font-bold text-[#B79074]"
+                      className="h-12 rounded border-[3px] border-[#B79074] bg-[#FFFDF8] text-base font-bold text-[#B79074]"
                     >
                       キャンセル
                     </button>
@@ -895,7 +895,7 @@ export default function Page4() {
                         resetForms();
                         setShowForm(false);
                       }}
-                      className="h-12 rounded border-[3px] border-[#B79074] bg-[#FFFAF2] text-base font-bold text-[#B79074]"
+                      className="h-12 rounded border-[3px] border-[#B79074] bg-[#FFFDF8] text-base font-bold text-[#B79074]"
                     >
                       キャンセル
                     </button>
@@ -941,6 +941,7 @@ export default function Page4() {
     </main>
   );
 }
+
 
 
 
