@@ -5,6 +5,44 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+type IconType = "search" | "edit";
+
+function ButtonIcon({ type }: { type: IconType }) {
+  if (type === "search") {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+        className="h-7 w-7 flex-none"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <circle cx="11" cy="11" r="7" />
+        <path d="M20 20l-3.5-3.5" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className="h-7 w-7 flex-none"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3 21h6" />
+      <path d="M4 17.5L16.8 4.7a2 2 0 0 1 2.8 0l.5.5a2 2 0 0 1 0 2.8L7.3 20.8 4 21z" />
+    </svg>
+  );
+}
+
 export default function Page1() {
   const router = useRouter();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -21,9 +59,7 @@ export default function Page1() {
   const [newsError, setNewsError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
+    if (typeof window === "undefined") return;
 
     const syncLoginState = () => {
       const stored = localStorage.getItem("yochiLoggedIn") === "true";
@@ -37,12 +73,18 @@ export default function Page1() {
       }
     };
 
+    const handleAuthChanged = () => {
+      syncLoginState();
+    };
+
     syncLoginState();
     window.addEventListener("storage", handleStorage);
+    window.addEventListener("yochi-auth-changed", handleAuthChanged);
     return () => {
       window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("yochi-auth-changed", handleAuthChanged);
     };
-  }, [isLoggedIn, memberId]);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -73,9 +115,7 @@ export default function Page1() {
   }, []);
 
   const handleLogout = () => {
-    if (typeof window === "undefined") {
-      return;
-    }
+    if (typeof window === "undefined") return;
     localStorage.setItem("yochiLoggedIn", "false");
     localStorage.removeItem("yochiMemberId");
     window.dispatchEvent(new Event("yochi-auth-changed"));
@@ -84,108 +124,123 @@ export default function Page1() {
     router.replace("/");
   };
 
+  const formatDateTime = (value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const dd = String(date.getDate()).padStart(2, "0");
+    const hh = String(date.getHours()).padStart(2, "0");
+    const mi = String(date.getMinutes()).padStart(2, "0");
+    const ss = String(date.getSeconds()).padStart(2, "0");
+    return `${yyyy}/${mm}/${dd} ${hh}:${mi}:${ss}`;
+  };
+
   return (
-    <main className="relative min-h-screen bg-[#F0E4D8] grid grid-rows-[auto_auto_1fr] justify-items-center px-6 pt-20 pb-10 gap-6">
-      <div className={`top-actions ${isLoggedIn ? "top-actions-logged" : ""}`}>
-        {!isLoggedIn && (
-          <Link
-            href="/login"
-            className="btn-secondary fade-up-2"
-          >
-            マイページ
-          </Link>
-        )}
-        {isLoggedIn && (
-          <div className="member-actions">
-            {memberId && (
-              <span className="member-label fade-up-2">
-                {memberId}さんのページ
-              </span>
-            )}
-            <button
-              type="button"
-              className="btn-secondary fade-up-2"
-              onClick={handleLogout}
+    <main className="min-h-screen bg-[#FAF8F6] px-4 py-6 text-[#2e2a28] sm:px-8">
+      <div className="mx-auto w-full max-w-5xl">
+        <div className="mb-2 flex justify-end">
+          {!isLoggedIn ? (
+            <Link
+              href="/login"
+              className="rounded-md border-2 border-[#cda982] bg-[#f6f2ee] px-5 py-2 text-sm font-bold text-[#4b4038] hover:opacity-85"
             >
-              ログアウト
-            </button>
-          </div>
-        )}
-      </div>
-      {/* 上段：ロゴ（1.2倍大きく） */}
-      <div className="row-start-1 row-end-2 self-start swoosh-in select-none">
-        <Image
-          src="/yoyochi.jpg" // /public 配下に置いたファイル
-          alt="よちヨチ ロゴ"
-          width={1080}
-          height={480}
-          priority
-          className="h-auto w-[min(96vw,1080px)]"
-        />
-      </div>
-
-      {/* 中段：メインボタン（中央） */}
-      <div className="row-start-2 row-end-3 self-start flex flex-col items-center gap-4">
-        <Link
-          href="/Select"
-          className="btn-primary fade-up-1"
-        >
-          献立チェック
-        </Link>
-        {isLoggedIn && (
-          <Link
-            href="/Register"
-            className="btn-secondary fade-up-3"
-          >
-            給食記録
-          </Link>
-        )}
-      </div>
-
-      <div className="row-start-3 row-end-4 w-full max-w-2xl self-start">
-        <div className="rounded-2xl border border-[#E8DCD0] bg-[#F5EDE6] p-4 shadow-md">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-[#5C3A2E]">保育ニュース</h2>
-            <span className="text-xs font-semibold text-[#8A776A]">
-              ヒヤリハット速報
-            </span>
-          </div>
-
-          {newsLoading && (
-            <p className="text-sm text-[#6B5A4E] mt-3">読み込み中...</p>
+              マイページ
+            </Link>
+          ) : (
+            <div className="flex flex-col items-end gap-2">
+              {memberId && (
+                <span className="text-xs font-semibold text-[#3c3733] sm:text-sm">
+                  {memberId}さんのページ
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="rounded-md border-2 border-[#cda982] bg-[#f6f2ee] px-6 py-1 text-xs font-bold text-[#4b4038] hover:opacity-85 sm:text-sm"
+              >
+                ログアウト
+              </button>
+            </div>
           )}
-          {newsError && <p className="text-sm text-red-600 mt-3">{newsError}</p>}
+        </div>
+
+        <div className="mb-4 select-none sm:mb-6">
+          <Image
+            src="/yoyochi3.png"
+            alt="よちヨチ ロゴ"
+            width={960}
+            height={360}
+            priority
+            className="mx-auto h-auto w-full max-w-3xl"
+          />
+        </div>
+
+        <div className="mb-10 grid grid-cols-2 gap-4 sm:mb-12 sm:gap-6">
+          <Link
+            href="/Select"
+            className="flex items-center justify-center gap-2 rounded-3xl bg-[#B79074] px-3 py-4 text-white hover:brightness-105 sm:gap-3"
+          >
+            <ButtonIcon type="search" />
+            <span className="text-base font-semibold leading-none sm:text-2xl">
+              献立チェック
+            </span>
+          </Link>
+          <Link
+            href={isLoggedIn ? "/Register" : "/login"}
+            className="flex items-center justify-center gap-2 rounded-3xl bg-[#B79074] px-3 py-4 text-white hover:brightness-105 sm:gap-3"
+          >
+            <ButtonIcon type="edit" />
+            <span className="text-base font-semibold leading-none sm:text-2xl">
+              保育園ページ
+            </span>
+          </Link>
+        </div>
+
+        <div className="rounded-lg border-[3px] border-[#d4b08d] bg-[#F0E4D8] p-3 sm:p-4">
+          <h2 className="mb-3 text-base font-semibold text-[#38322f] sm:text-lg">
+            ヒヤリハット一覧
+          </h2>
+
+          {newsLoading && <p className="text-sm text-[#6d6055] sm:text-base">読み込み中...</p>}
+          {newsError && <p className="text-sm text-red-600 sm:text-base">{newsError}</p>}
 
           {!newsLoading && !newsError && (
             <>
               {hiyariNews.length > 0 ? (
-                <ul className="mt-4 space-y-3">
-                  {hiyariNews.map((item) => (
-                    <li
-                      key={item.id}
-                      className="rounded-xl border border-[#E8DCD0] bg-white p-3"
-                    >
-                      <div className="text-sm font-semibold text-[#4D3F36]">
-                        {item.food_name}
+                <ul className="space-y-3">
+                  {hiyariNews.map((item, index) => (
+                    <li key={item.id} className="rounded-lg bg-[#FAF8F6] p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="text-sm font-semibold text-[#2f2b28] sm:text-base">
+                          {item.food_name}
+                        </div>
+                        {index === 0 && (
+                          <span className="text-xs font-bold text-[#b76444] sm:text-sm">
+                            New !
+                          </span>
+                        )}
                       </div>
                       {item.detail && (
-                        <p className="text-sm text-[#6B5A4E] mt-1">{item.detail}</p>
+                        <p className="mt-1 text-sm leading-tight text-[#4d443e] sm:text-base">
+                          {item.detail}
+                        </p>
                       )}
-                      <div className="text-xs text-[#8A776A] mt-2">
-                        {new Date(item.created_at).toLocaleString()}
+                      <div className="mt-1 text-xs text-[#675b52] sm:text-sm">
+                        {formatDateTime(item.created_at)}
                       </div>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-sm text-[#6B5A4E] mt-3">
+                <p className="text-sm text-[#6d6055] sm:text-base">
                   新しいヒヤリハットはありません。
                 </p>
               )}
-              <div className="mt-4 flex justify-end">
+              <div className="mt-3 flex justify-end">
                 <Link
                   href="/News"
-                  className="text-sm font-semibold text-[#6B5A4E] underline underline-offset-4 hover:opacity-70"
+                  className="text-sm font-semibold text-[#393430] hover:opacity-70 sm:text-base"
                 >
                   すべて見る
                 </Link>
@@ -194,138 +249,6 @@ export default function Page1() {
           )}
         </div>
       </div>
-
-      <style jsx global>{`
-        /* ロゴ入場 */
-        @keyframes swooshIn {
-          0% {
-            opacity: 0;
-            transform: translateY(64px) scale(0.96);
-          }
-          50% {
-            opacity: 1;
-            transform: translateY(0) scale(1.02);
-          }
-          100% {
-            transform: translateY(0) scale(1);
-          }
-        }
-        .swoosh-in {
-          animation: swooshIn 2000ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-        }
-
-        /* フェード */
-        @keyframes fadeUp {
-          0% {
-            opacity: 0;
-            transform: translateY(18px) scale(0.98);
-          }
-          100% {
-            opacity: 1;
-            transform: translateY(0) scale(1);
-          }
-        }
-        .fade-up-1 {
-          animation: fadeUp 1200ms 900ms ease-out both;
-        }
-        .fade-up-2 {
-          animation: fadeUp 1200ms 1300ms ease-out both;
-        }
-        .fade-up-3 {
-          animation: fadeUp 1200ms 1600ms ease-out both;
-        }
-
-        /* メインボタン：丸角・大きめ文字 */
-        .btn-primary {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          padding: 1.1rem 2rem;
-          border-radius: 1rem; /* 丸角 */
-          font-weight: 700;
-          font-size: 1.5rem; /* 文字大きめ */
-          line-height: 1;
-          text-decoration: none;
-          background: #9c7b6c;
-          color: #fff;
-          border: 1px solid #8c6f62;
-          transition: background-color 0.25s, transform 0.12s, opacity 0.25s;
-        }
-        .btn-primary:hover {
-          background: #a88877;
-        }
-        .btn-primary:active {
-          transform: translateY(1px);
-        }
-        .btn-secondary {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          padding: 0.9rem 1.6rem;
-          border-radius: 0.9rem;
-          font-weight: 600;
-          font-size: 1.2rem;
-          line-height: 1;
-          text-decoration: none;
-          background: #f5ede6;
-          color: #6b5a4e;
-          border: 1px solid #d6c2b4;
-          transition: background-color 0.25s, transform 0.12s, opacity 0.25s;
-        }
-        .btn-secondary:hover {
-          background: #e7dbcf;
-        }
-        .btn-secondary:active {
-          transform: translateY(1px);
-        }
-        .top-actions {
-          position: absolute;
-          top: 2rem;
-          right: clamp(1rem, 5vw, 3rem);
-          z-index: 10;
-          display: flex;
-          align-items: center;
-          gap: 0.75rem;
-        }
-        .top-actions-logged {
-          align-items: flex-end;
-        }
-        .member-actions {
-          display: flex;
-          flex-direction: column;
-          align-items: flex-end;
-          gap: 0.35rem;
-        }
-        .member-label {
-          font-size: 0.95rem;
-          font-weight: 700;
-          color: #6b5a4e;
-          padding: 0.1rem 0;
-        }
-        @media (max-width: 640px) {
-          .top-actions {
-            top: 1rem;
-            right: 1rem;
-            flex-direction: column;
-            align-items: flex-end;
-          }
-        }
-
-        /* サブリンク：右下だが余白を持たせる */
-        .underline-link {
-          position: absolute;
-          right: 2rem; /* ← 少し余白を増やした */
-          bottom: 10rem;
-          color: #6b5a4e;
-          text-decoration: underline;
-          text-underline-offset: 4px;
-          font-weight: 600;
-          transition: opacity 0.2s ease;
-        }
-        .underline-link:hover {
-          opacity: 0.7;
-        }
-      `}</style>
     </main>
   );
 }
