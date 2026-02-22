@@ -137,7 +137,7 @@ export default function Page1() {
   };
 
   return (
-    <main className="min-h-screen bg-[#FFFAF2] px-4 py-6 text-[#2e2a28] sm:px-8">
+    <main className="min-h-screen bg-[#FFFDF8] px-4 py-6 text-[#2e2a28] sm:px-8">
       <div className="mx-auto w-full max-w-5xl">
         <div className="mb-2 flex justify-end">
           {!isLoggedIn ? (
@@ -252,6 +252,7 @@ export default function Page1() {
     </main>
   );
 }
+
 
 
 
