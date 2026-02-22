@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
 
 export const runtime = "nodejs";
@@ -29,7 +29,7 @@ export async function POST(req: Request) {
       !isRecordType(record_type)
     ) {
       return NextResponse.json(
-        { error: "必須項目が不足しています。" },
+        { error: "必須項目が不足しています" },
         { status: 400 }
       );
     }
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     if (error) {
       console.error(error);
       return NextResponse.json(
-        { error: "保存に失敗しました。" },
+        { error: "登録に失敗しました" },
         { status: 500 }
       );
     }
@@ -55,7 +55,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error(err);
-    return NextResponse.json({ error: "保存に失敗しました。" }, { status: 500 });
+    return NextResponse.json({ error: "登録に失敗しました" }, { status: 500 });
   }
 }
 
@@ -85,7 +85,7 @@ export async function GET(req: Request) {
     if (error) {
       console.error(error);
       return NextResponse.json(
-        { error: "取得に失敗しました。" },
+        { error: "取得に失敗しました" },
         { status: 500 }
       );
     }
@@ -93,6 +93,6 @@ export async function GET(req: Request) {
     return NextResponse.json({ items: data ?? [] });
   } catch (err) {
     console.error(err);
-    return NextResponse.json({ error: "取得に失敗しました。" }, { status: 500 });
+    return NextResponse.json({ error: "取得に失敗しました" }, { status: 500 });
   }
 }
