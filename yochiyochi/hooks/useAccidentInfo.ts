@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 type AccidentRow = {
-  description_accident: string | null;
+  accident_detail: string | null;
 };
 
 type MealRecordRow = {
@@ -32,8 +32,8 @@ export function useAccidentInfo() {
 
       try {
         const accidentPromise = supabase
-          .from("yochiyochi_accidentlist")
-          .select("description_accident")
+          .from("A_accident")
+          .select("accident_detail")
           .eq("food_id", foodId);
 
         const hiyariQuery = supabase
@@ -54,7 +54,7 @@ export function useAccidentInfo() {
         if (!accidentError) {
           const rows = (accidentData ?? []) as unknown as AccidentRow[];
           const descriptions = rows
-            .map((row, i) => `${i + 1}. ${row.description_accident ?? ""}`.trim())
+            .map((row, i) => `${i + 1}. ${row.accident_detail ?? ""}`.trim())
             .filter((s) => s !== "")
             .join("\n\n");
           if (descriptions) {
