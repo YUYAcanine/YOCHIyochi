@@ -9,6 +9,13 @@ import Ribbon from "@/components/Ribbon";
 
 type RegisterTab = "child" | "cook" | "hiyari";
 type ChildFormMode = "register" | "edit";
+type CookDrafts = {
+  phase1: string;
+  phase2: string;
+  phase3: string;
+  phase4: string;
+  phase5: string;
+};
 
 type AnswerItem = {
   id: number;
@@ -59,6 +66,14 @@ export default function Page4() {
   const [mealAgeMonth, setMealAgeMonth] = useState("");
   const [mealFood, setMealFood] = useState("");
   const [mealDetail, setMealDetail] = useState("");
+  const [cookFoodName, setCookFoodName] = useState("");
+  const [cookDrafts, setCookDrafts] = useState<CookDrafts>({
+    phase1: "",
+    phase2: "",
+    phase3: "",
+    phase4: "",
+    phase5: "",
+  });
 
   const [formMsg, setFormMsg] = useState<string | null>(null);
   const [submitLoading, setSubmitLoading] = useState(false);
@@ -75,13 +90,31 @@ export default function Page4() {
   const [listLoading, setListLoading] = useState(false);
   const [reloadTick, setReloadTick] = useState(0);
 
-  const { foodIdMap } = useMenuData();
+  const { menuMap, foodIdMap, foodNameOptions } = useMenuData(memberId, reloadTick);
 
   const mealFoodId = useMemo(() => {
     const key = canon(mealFood);
     if (!key) return null;
     return foodIdMap[key] ?? null;
   }, [mealFood, foodIdMap]);
+
+  const noEatFoodId = useMemo(() => {
+    const key = canon(noEat);
+    if (!key) return null;
+    return foodIdMap[key] ?? null;
+  }, [noEat, foodIdMap]);
+
+  const cookFoodOptions = useMemo(() => {
+    return foodNameOptions;
+  }, [foodNameOptions]);
+
+  const primaryActionLabel = activeTab === "cook" ? "食材登録" : "園児追加";
+
+  const handleTabChange = (tab: RegisterTab) => {
+    setActiveTab(tab);
+    setShowForm(false);
+    setFormMsg(null);
+  };
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -150,6 +183,12 @@ export default function Page4() {
   }, [answerItems, mealItems]);
 
   const namesForTab = useMemo(() => {
+    if (activeTab === "cook") {
+      return cookFoodOptions.filter((name) =>
+        name.toLowerCase().includes(searchText.trim().toLowerCase())
+      );
+    }
+
     const latestMap = new Map<string, number>();
 
     const addLatest = (name: string, createdAt: string) => {
@@ -164,7 +203,7 @@ export default function Page4() {
         addLatest(item.child_name, item.created_at);
       }
     } else {
-      const targetType = activeTab === "cook" ? "growth" : "hiyari";
+      const targetType = "hiyari";
       for (const item of mealItems.filter((item) => item.record_type === targetType)) {
         addLatest(item.child_name, item.created_at);
       }
@@ -174,7 +213,7 @@ export default function Page4() {
       .sort((a, b) => b[1] - a[1])
       .map(([name]) => name)
       .filter((name) => name.toLowerCase().includes(searchText.trim().toLowerCase()));
-  }, [activeTab, answerItems, mealItems, searchText]);
+  }, [activeTab, answerItems, mealItems, searchText, cookFoodOptions]);
 
   useEffect(() => {
     if (namesForTab.length === 0) {
@@ -190,6 +229,10 @@ export default function Page4() {
       return next;
     });
   }, [namesForTab]);
+
+  useEffect(() => {
+    setSearchText("");
+  }, [activeTab]);
 
   if (!authChecked) return null;
 
@@ -208,7 +251,34 @@ export default function Page4() {
     setMealAgeMonth("");
     setMealFood("");
     setMealDetail("");
+    setCookFoodName("");
+    setCookDrafts({
+      phase1: "",
+      phase2: "",
+      phase3: "",
+      phase4: "",
+      phase5: "",
+    });
     setIsNoEatChecked(false);
+    setFormMsg(null);
+  };
+
+  const loadCookDraftFromName = (name: string) => {
+    const key = canon(name);
+    const info = key ? menuMap[key] : undefined;
+    setCookFoodName(name);
+    setCookDrafts({
+      phase1: info?.phase1 ?? "",
+      phase2: info?.phase2 ?? "",
+      phase3: info?.phase3 ?? "",
+      phase4: info?.phase4 ?? "",
+      phase5: info?.phase5 ?? "",
+    });
+  };
+
+  const openCookEditor = (foodName: string) => {
+    loadCookDraftFromName(foodName);
+    setShowForm(true);
     setFormMsg(null);
   };
 
@@ -267,24 +337,19 @@ export default function Page4() {
     if (!memberId) return;
     if (!window.confirm(`${name}の食材情報を削除しますか？`)) return;
 
-    const targets = answerItems.filter((item) => item.child_name === name);
-    if (targets.length === 0) {
-      setFormMsg("削除対象がありません。");
-      return;
-    }
-
     setFormMsg(null);
     setSubmitLoading(true);
     try {
-      const requests = targets.map((item) =>
-        fetch("/api/enji-info", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: item.id, member_id: memberId }),
-        })
-      );
-      const results = await Promise.all(requests);
-      if (results.some((res) => !res.ok)) throw new Error("delete failed");
+      const res = await fetch("/api/enji-info", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          member_id: memberId,
+          child_name: name,
+          delete_child: true,
+        }),
+      });
+      if (!res.ok) throw new Error("delete failed");
 
       if (foodEditTargetName === name) {
         closeInlineEditor();
@@ -329,6 +394,7 @@ export default function Page4() {
         can_eat: true,
         note: "",
         member_id: memberId,
+        mode: "child",
       };
 
       const res = await fetch("/api/enji-info", {
@@ -399,12 +465,17 @@ export default function Page4() {
         setFormMsg("食材名を入力してください。");
         return;
       }
+      if (noEatFoodId == null) {
+        setFormMsg("A_cookに登録されている食材を選択してください。");
+        return;
+      }
 
       const body = {
         child_name: childName,
         age_month: Number(ageMonth),
         no_eat: noEat,
         can_eat: !isNoEatChecked,
+        food_id: noEatFoodId,
         note,
         member_id: memberId,
       };
@@ -473,6 +544,46 @@ export default function Page4() {
       setReloadTick((prev) => prev + 1);
       resetForms();
       setShowForm(false);
+    } catch {
+      setFormMsg("登録に失敗しました。");
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
+
+  const handleCookSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormMsg(null);
+
+    if (!cookFoodName.trim()) {
+      setFormMsg("食材名を入力してください。");
+      return;
+    }
+    if (!memberId) {
+      setFormMsg("ログイン情報を確認してください。");
+      return;
+    }
+
+    setSubmitLoading(true);
+    try {
+      const res = await fetch("/api/a-cook", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          member_id: memberId,
+          food_name: cookFoodName.trim(),
+          ...cookDrafts,
+        }),
+      });
+      if (!res.ok) throw new Error("save failed");
+
+      setFormMsg("登録しました。");
+      setReloadTick((prev) => prev + 1);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("yochi-cook-updated"));
+      }
+      setShowForm(false);
+      resetForms();
     } catch {
       setFormMsg("登録に失敗しました。");
     } finally {
@@ -621,6 +732,7 @@ export default function Page4() {
                     食材名 (選択)
                     <input
                       type="text"
+                      list="a-cook-food-options"
                       value={noEat}
                       onChange={(e) => setNoEat(e.target.value)}
                       className="mt-1 h-11 w-full rounded border-[3px] border-[#7f7f7f] bg-transparent px-2"
@@ -764,6 +876,74 @@ export default function Page4() {
     );
   };
 
+  const renderCookPanel = (foodName: string) => {
+    const key = canon(foodName);
+    const info = key ? menuMap[key] : undefined;
+    const phases: Array<{ label: string; value?: string }> = [
+      { label: "離乳初期", value: info?.phase1 },
+      { label: "離乳中期", value: info?.phase2 },
+      { label: "離乳後期", value: info?.phase3 },
+      { label: "完了期", value: info?.phase4 },
+      { label: "幼児期", value: info?.phase5 },
+    ];
+
+    return (
+      <div key={foodName} className="rounded-md border border-[#E6D7C8] bg-white p-4">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => toggleExpanded(foodName)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              toggleExpanded(foodName);
+            }
+          }}
+            className="flex cursor-pointer items-center justify-between"
+          >
+            <div className="text-left text-lg font-bold text-[#5C3A2E]">{foodName}</div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openCookEditor(foodName);
+                }}
+                className="rounded p-1 text-[#2f2a27] hover:bg-[#e7ddd3]"
+                aria-label={`${foodName}を編集`}
+              >
+                <Pencil size={18} />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleExpanded(foodName);
+                }}
+                className="rounded p-1 text-[#2f2a27]"
+                aria-label={`${foodName}を${expandedNames[foodName] ? "収納" : "展開"}`}
+              >
+                {expandedNames[foodName] ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+              </button>
+            </div>
+          </div>
+
+        {expandedNames[foodName] && (
+          <div className="mt-4 space-y-3">
+            {phases.map((phase) => (
+              <div key={phase.label} className="grid grid-cols-[5.6rem_1fr] items-center gap-2">
+                <div className="text-base font-bold text-[#2f2a27]">{phase.label}</div>
+                <div className="rounded border-[3px] border-[#7f7f7f] bg-[#fafafa] px-3 py-2 text-base text-[#2f2a27]">
+                  {phase.value?.trim() ? phase.value : "未登録"}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <main className="min-h-screen bg-[#FFFDF8] text-[#2f2a27]">
       <div className="mx-auto w-full max-w-4xl pb-8">
@@ -785,7 +965,7 @@ export default function Page4() {
           <div className="grid grid-cols-3 gap-1 border-b-[6px] border-[#b79074]">
             <button
               type="button"
-              onClick={() => setActiveTab("child")}
+              onClick={() => handleTabChange("child")}
               className={`rounded-t-md py-2 text-base font-bold ${
                 activeTab === "child" ? "bg-[#B79074] text-white" : "bg-[#ece4dc] text-[#7d7570]"
               }`}
@@ -794,7 +974,7 @@ export default function Page4() {
             </button>
             <button
               type="button"
-              onClick={() => setActiveTab("cook")}
+              onClick={() => handleTabChange("cook")}
               className={`rounded-t-md py-2 text-base font-bold ${
                 activeTab === "cook" ? "bg-[#B79074] text-white" : "bg-[#ece4dc] text-[#7d7570]"
               }`}
@@ -803,7 +983,7 @@ export default function Page4() {
             </button>
             <button
               type="button"
-              onClick={() => setActiveTab("hiyari")}
+              onClick={() => handleTabChange("hiyari")}
               className={`rounded-t-md py-2 text-base font-bold ${
                 activeTab === "hiyari" ? "bg-[#B79074] text-white" : "bg-[#ece4dc] text-[#7d7570]"
               }`}
@@ -815,7 +995,7 @@ export default function Page4() {
           <div className="mt-3 flex gap-1">
             <input
               type="text"
-              placeholder="園児名を入力してください"
+              placeholder={activeTab === "cook" ? "食材名を入力してください" : "園児名を入力してください"}
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               className="h-12 w-full rounded-sm border-[3px] border-[#b79074] bg-[#FFFDF8] px-3 text-base outline-none placeholder:text-[#b7aea6]"
@@ -835,12 +1015,18 @@ export default function Page4() {
               resetForms();
               setChildFormMode("register");
               setFoodEditTargetName(null);
+              if (activeTab === "cook") {
+                const q = searchText.trim();
+                if (q) {
+                  loadCookDraftFromName(q);
+                }
+              }
               setShowForm((prev) => !prev);
               setFormMsg(null);
             }}
             className="mt-6 w-full rounded-sm bg-[#B79074] py-2 text-base font-bold text-white"
           >
-            園児追加
+            {primaryActionLabel}
           </button>
 
           {showForm && (
@@ -868,6 +1054,71 @@ export default function Page4() {
                         className="mt-1 h-11 w-full rounded border-[3px] border-[#7f7f7f] bg-transparent px-2"
                       />
                     </label>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        resetForms();
+                        setShowForm(false);
+                      }}
+                      className="h-12 rounded border-[3px] border-[#B79074] bg-[#FFFDF8] text-base font-bold text-[#B79074]"
+                    >
+                      キャンセル
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submitLoading}
+                      className="h-12 rounded bg-[#B79074] text-base font-bold text-white disabled:opacity-70"
+                    >
+                      {submitLoading ? "送信中" : "登録"}
+                    </button>
+                  </div>
+                </form>
+              ) : activeTab === "cook" ? (
+                <form onSubmit={handleCookSubmit} className="space-y-4">
+                  <div className="rounded-sm bg-[#B79074] py-2 text-center text-3xl font-bold text-white">
+                    食材登録
+                  </div>
+                  <label className="block text-base font-medium text-[#2f2a27]">
+                    食材名
+                    <input
+                      type="text"
+                      list="a-cook-food-options"
+                      value={cookFoodName}
+                      onChange={(e) => setCookFoodName(e.target.value)}
+                      className="mt-1 h-11 w-full rounded border-[3px] border-[#7f7f7f] bg-transparent px-2"
+                    />
+                  </label>
+
+                  <div className="space-y-2">
+                    <p className="text-base font-medium text-[#2f2a27]">調理方法</p>
+                    {[
+                      { key: "phase1", label: "離乳初期" },
+                      { key: "phase2", label: "離乳中期" },
+                      { key: "phase3", label: "離乳後期" },
+                      { key: "phase4", label: "完了期" },
+                      { key: "phase5", label: "幼児期" },
+                    ].map((row) => (
+                      <div
+                        key={row.key}
+                        className="grid grid-cols-[5.6rem_1fr] items-center gap-2"
+                      >
+                        <div className="text-base font-medium text-[#2f2a27]">{row.label}</div>
+                        <input
+                          type="text"
+                          value={cookDrafts[row.key as keyof CookDrafts]}
+                          onChange={(e) =>
+                            setCookDrafts((prev) => ({
+                              ...prev,
+                              [row.key]: e.target.value,
+                            }))
+                          }
+                          className="h-11 w-full rounded border-[3px] border-[#7f7f7f] bg-transparent px-2"
+                        />
+                      </div>
+                    ))}
                   </div>
 
                   <div className="grid grid-cols-2 gap-4 pt-2">
@@ -919,6 +1170,7 @@ export default function Page4() {
                     食材名 (選択)
                     <input
                       type="text"
+                      list="a-cook-food-options"
                       value={mealFood}
                       onChange={(e) => setMealFood(e.target.value)}
                       className="mt-1 h-11 w-full rounded border-[3px] border-[#7f7f7f] bg-transparent px-2"
@@ -974,7 +1226,9 @@ export default function Page4() {
               namesForTab.map((name) =>
                 activeTab === "child"
                   ? renderChildPanel(name)
-                  : renderMealPanel(name, activeTab === "cook" ? "growth" : "hiyari")
+                  : activeTab === "cook"
+                    ? renderCookPanel(name)
+                    : renderMealPanel(name, "hiyari")
               )}
           </section>
         </div>
@@ -983,6 +1237,11 @@ export default function Page4() {
       <datalist id="child-name-options">
         {childOptions.map((name) => (
           <option key={name} value={name} />
+        ))}
+      </datalist>
+      <datalist id="a-cook-food-options">
+        {cookFoodOptions.map((foodName) => (
+          <option key={foodName} value={foodName} />
         ))}
       </datalist>
     </main>

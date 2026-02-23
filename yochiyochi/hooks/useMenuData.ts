@@ -13,7 +13,7 @@ export type MenuInfo = {
 };
 
 type ACookRow = {
-  id: number;
+  id: number | string;
   food_name: string | null;
   phase1: string | null;
   phase2: string | null;
@@ -22,16 +22,37 @@ type ACookRow = {
   phase5: string | null;
 };
 
-type OverrideRow = {
-  food_id: number;
-  phase: string;
-  description: string | null;
+type BCookRow = {
+  food_id: number | string;
+  food_name: string | null;
+  phase1: string | null;
+  phase2: string | null;
+  phase3: string | null;
+  phase4: string | null;
+  phase5: string | null;
 };
 
-export function useMenuData(memberId?: string | null) {
+const toGardenId = (memberId: string): number | null => {
+  const digits = memberId.replace(/\D/g, "");
+  if (!digits) return null;
+  const value = Number(digits);
+  if (!Number.isFinite(value)) return null;
+  return value;
+};
+
+export function useMenuData(memberId?: string | null, reloadTick?: number) {
   const [menuMap, setMenuMap] = useState<Record<string, MenuInfo>>({});
   const [foodIdMap, setFoodIdMap] = useState<Record<string, number>>({});
   const [cookIdMap, setCookIdMap] = useState<Record<string, number>>({});
+  const [foodNameOptions, setFoodNameOptions] = useState<string[]>([]);
+  const [eventTick, setEventTick] = useState(0);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onCookUpdated = () => setEventTick((prev) => prev + 1);
+    window.addEventListener("yochi-cook-updated", onCookUpdated);
+    return () => window.removeEventListener("yochi-cook-updated", onCookUpdated);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -47,14 +68,22 @@ export function useMenuData(memberId?: string | null) {
         const rows = data as unknown as ACookRow[];
         const map: Record<string, MenuInfo> = {};
         const idMap: Record<string, number> = {};
-        const idToKey = new Map<number, string>();
+        const idToKey = new Map<string, string>();
+        const nameSet = new Set<string>();
 
         for (const row of rows) {
+          const displayName = (row.food_name ?? "").trim();
+          if (displayName) {
+            nameSet.add(displayName);
+          }
+
           const key = canon(row.food_name ?? "");
           if (!key) continue;
 
-          idMap[key] = row.id;
-          idToKey.set(row.id, key);
+          const numericId = Number(row.id);
+          if (!Number.isFinite(numericId)) continue;
+          idMap[key] = numericId;
+          idToKey.set(String(row.id), key);
           map[key] = {
             phase1: row.phase1?.trim() ?? undefined,
             phase2: row.phase2?.trim() ?? undefined,
@@ -65,22 +94,35 @@ export function useMenuData(memberId?: string | null) {
         }
 
         if (memberId) {
-          const { data: overrideData, error: overrideError } = await supabase
-            .from("yochiyochi_cook_overrides")
-            .select("food_id, phase, description")
-            .eq("member_id", memberId);
+          const gardenId = toGardenId(memberId);
+          if (gardenId != null) {
+            const { data: bCookData, error: bCookError } = await supabase
+              .from("B_cook")
+              .select("food_id, food_name, phase1, phase2, phase3, phase4, phase5")
+              .eq("garden_id", gardenId);
 
-          if (!overrideError && overrideData) {
-            const overrides = overrideData as unknown as OverrideRow[];
-            for (const row of overrides) {
-              const key = idToKey.get(row.food_id);
-              if (!key) continue;
-              const phaseKey = row.phase as keyof MenuInfo;
-              if (!phaseKey) continue;
-              map[key] = {
-                ...map[key],
-                [phaseKey]: row.description?.trim() ?? undefined,
-              };
+            if (!bCookError && bCookData) {
+              const overrides = bCookData as unknown as BCookRow[];
+              for (const row of overrides) {
+                const keyFromFoodId = idToKey.get(String(row.food_id));
+                const keyFromName = canon(row.food_name ?? "");
+                const key = keyFromFoodId ?? (keyFromName || undefined);
+                if (!key) continue;
+
+                const displayName = (row.food_name ?? "").trim();
+                if (displayName) {
+                  nameSet.add(displayName);
+                }
+
+                map[key] = {
+                  ...map[key],
+                  phase1: row.phase1?.trim() ?? map[key]?.phase1,
+                  phase2: row.phase2?.trim() ?? map[key]?.phase2,
+                  phase3: row.phase3?.trim() ?? map[key]?.phase3,
+                  phase4: row.phase4?.trim() ?? map[key]?.phase4,
+                  phase5: row.phase5?.trim() ?? map[key]?.phase5,
+                };
+              }
             }
           }
         }
@@ -89,6 +131,9 @@ export function useMenuData(memberId?: string | null) {
         setMenuMap(map);
         setFoodIdMap(idMap);
         setCookIdMap({});
+        setFoodNameOptions(
+          Array.from(nameSet).sort((a, b) => a.localeCompare(b, "ja"))
+        );
       } catch (e) {
         console.error("useMenuData error:", e);
       }
@@ -98,7 +143,7 @@ export function useMenuData(memberId?: string | null) {
     return () => {
       cancelled = true;
     };
-  }, [memberId]);
+  }, [memberId, reloadTick, eventTick]);
 
   const updateMenuForKey = (
     key: string,
@@ -117,5 +162,5 @@ export function useMenuData(memberId?: string | null) {
     });
   };
 
-  return { menuMap, foodIdMap, cookIdMap, updateMenuForKey };
+  return { menuMap, foodIdMap, cookIdMap, foodNameOptions, updateMenuForKey };
 }
