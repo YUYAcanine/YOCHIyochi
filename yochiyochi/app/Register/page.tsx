@@ -263,6 +263,41 @@ export default function Page4() {
     }
   };
 
+  const handleDeleteChildPanel = async (name: string) => {
+    if (!memberId) return;
+    if (!window.confirm(`${name}の食材情報を削除しますか？`)) return;
+
+    const targets = answerItems.filter((item) => item.child_name === name);
+    if (targets.length === 0) {
+      setFormMsg("削除対象がありません。");
+      return;
+    }
+
+    setFormMsg(null);
+    setSubmitLoading(true);
+    try {
+      const requests = targets.map((item) =>
+        fetch("/api/enji-info", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: item.id, member_id: memberId }),
+        })
+      );
+      const results = await Promise.all(requests);
+      if (results.some((res) => !res.ok)) throw new Error("delete failed");
+
+      if (foodEditTargetName === name) {
+        closeInlineEditor();
+      }
+      setFormMsg("削除しました。");
+      setReloadTick((prev) => prev + 1);
+    } catch {
+      setFormMsg("削除に失敗しました。");
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
+
   const handleStartEditFood = (item: AnswerItem) => {
     setChildFormMode("edit");
     setEditingAnswerId(item.id);
@@ -455,54 +490,107 @@ export default function Page4() {
     const month = noEatItems[0]?.age_month ?? hiyariItems[0]?.age_month ?? "-";
 
     return (
-      <div key={name} className="rounded-md border border-[#E6D7C8] bg-white p-4">
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={() => toggleExpanded(name)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              toggleExpanded(name);
-            }
-          }}
-          className="flex cursor-pointer items-center justify-between"
-        >
-          <div className="text-left text-lg font-bold text-[#5C3A2E]">{name}</div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
+      <div key={name} className="flex items-start gap-2">
+        {activeTab === "child" && showForm && (
+          <button
+            type="button"
+            onClick={() => handleDeleteChildPanel(name)}
+            className="mt-3 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-[2px] border-[#d64a3a] bg-white text-[#d64a3a]"
+            aria-label={`${name}の食材情報を削除`}
+          >
+            <X size={14} strokeWidth={2.5} />
+          </button>
+        )}
+        <div className="w-full rounded-md border border-[#E6D7C8] bg-white p-4">
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => toggleExpanded(name)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
                 toggleExpanded(name);
-              }}
-              className="rounded p-1 text-[#2f2a27]"
-              aria-label={`${name}を${expandedNames[name] ? "収納" : "展開"}`}
-            >
-              {expandedNames[name] ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                openEditorForName(name);
-              }}
-              className="rounded p-1 text-[#2f2a27] hover:bg-[#e7ddd3]"
-              aria-label={`${name}を編集`}
-            >
-              <Pencil size={18} />
-            </button>
+              }
+            }}
+            className="flex cursor-pointer items-center justify-between"
+          >
+            <div className="text-left text-lg font-bold text-[#5C3A2E]">{name}</div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleExpanded(name);
+                }}
+                className="rounded p-1 text-[#2f2a27]"
+                aria-label={`${name}を${expandedNames[name] ? "収納" : "展開"}`}
+              >
+                {expandedNames[name] ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openEditorForName(name);
+                }}
+                className="rounded p-1 text-[#2f2a27] hover:bg-[#e7ddd3]"
+                aria-label={`${name}を編集`}
+              >
+                <Pencil size={18} />
+              </button>
+            </div>
           </div>
-        </div>
 
-        {expandedNames[name] && (
-          <div className="mt-4 space-y-5">
+          {expandedNames[name] && (
+            <div className="mt-4 space-y-5">
             <div className="flex items-center justify-between text-[#2f2a27]">
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-bold">注意する食材</h3>
               </div>
               <span className="text-lg font-semibold">月齢 : {month}</span>
             </div>
+
+            {noEatItems.length > 0 ? (
+              <div className="space-y-2">
+                {noEatItems.map((item) => (
+                  <div key={item.id} className="flex items-center gap-2">
+                    {foodEditTargetName === name && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteFood(item)}
+                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-[2px] border-[#d64a3a] bg-white text-[#d64a3a]"
+                          aria-label={`${item.no_eat}を削除`}
+                        >
+                          <X size={14} strokeWidth={2.5} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleStartEditFood(item)}
+                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-[2px] border-[#2f2a27] bg-white text-[#2f2a27]"
+                          aria-label={`${item.no_eat}を編集`}
+                        >
+                          <Pencil size={14} />
+                        </button>
+                      </div>
+                    )}
+                    <div className={`w-full rounded-md p-3 ${item.can_eat ? "bg-[#FFF2D2]" : "bg-[#f3e9e9]"}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium text-[#2f2a27]">{item.no_eat}</p>
+                          {item.note && <p className="text-sm text-[#2f2a27]">{item.note}</p>}
+                        </div>
+                        {!item.can_eat && (
+                          <p className="text-sm font-medium text-[#dd3019]">食べられない</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-[#6b5a4e]">未登録です。</p>
+            )}
 
             {foodEditTargetName === name && (
               <form onSubmit={handleInlineFoodSubmit} className="space-y-4 rounded-md bg-white p-4">
@@ -579,48 +667,6 @@ export default function Page4() {
               </form>
             )}
 
-            {noEatItems.length > 0 ? (
-              <div className="space-y-2">
-                {noEatItems.map((item) => (
-                  <div key={item.id} className="flex items-center gap-2">
-                    {foodEditTargetName === name && (
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteFood(item)}
-                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-[2px] border-[#d64a3a] bg-white text-[#d64a3a]"
-                          aria-label={`${item.no_eat}を削除`}
-                        >
-                          <X size={14} strokeWidth={2.5} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleStartEditFood(item)}
-                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-[2px] border-[#2f2a27] bg-white text-[#2f2a27]"
-                          aria-label={`${item.no_eat}を編集`}
-                        >
-                          <Pencil size={14} />
-                        </button>
-                      </div>
-                    )}
-                    <div className={`w-full rounded-md p-3 ${item.can_eat ? "bg-[#FFF2D2]" : "bg-[#f3e9e9]"}`}>
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-medium text-[#2f2a27]">{item.no_eat}</p>
-                          {item.note && <p className="text-sm text-[#2f2a27]">{item.note}</p>}
-                        </div>
-                        {!item.can_eat && (
-                          <p className="text-sm font-medium text-[#dd3019]">食べられない</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-[#6b5a4e]">未登録です。</p>
-            )}
-
             {hiyariItems.length > 0 && (
               <div>
                 <h3 className="mb-2 text-base font-bold text-[#2f2a27]">ヒヤリハット</h3>
@@ -634,8 +680,9 @@ export default function Page4() {
                 </div>
               </div>
             )}
-          </div>
-        )}
+            </div>
+          )}
+        </div>
       </div>
     );
   };
