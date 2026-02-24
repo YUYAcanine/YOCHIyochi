@@ -17,7 +17,7 @@ import React from "react";
 import BottomDrawer from "@/components/BottomDrawer";
 import type { PhaseKey } from "@/types/food";
 
-type Variant = "forbidden" | "ok" | "none" | "child";
+type Variant = "forbidden" | "ok" | "none" | "child" | "forbidden_child" | "ok_child";
 
 type Props = {
   selectedText: string;
