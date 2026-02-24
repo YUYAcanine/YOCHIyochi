@@ -6,7 +6,7 @@ import type { PhaseKey } from "@/types/food";
 type Vertex = { x: number; y: number };
 type OCRBox = { description: string; boundingPoly: { vertices: Vertex[] } };
 
-type Variant = "forbidden" | "ok" | "none" | "child";
+type Variant = "forbidden" | "ok" | "none" | "child" | "forbidden_child" | "ok_child";
 
 type ScaleObj = { scale: number; offsetX?: number; offsetY?: number };
 
@@ -38,8 +38,6 @@ export default function OcrImage({
   const s = typeof scale === "number" ? (Number.isFinite(scale) ? scale : 1) : (scale?.scale ?? 1);
   const ox = typeof scale === "number" ? 0 : (scale?.offsetX ?? 0);
   const oy = typeof scale === "number" ? 0 : (scale?.offsetY ?? 0);
-  const computePadding = (w: number, h: number) =>
-    Math.max(1, Math.min(6, Math.min(w, h) * 0.06));
   const getRect = (vs: Vertex[]) => {
     if (!Array.isArray(vs) || vs.length < 4) return null;
 
@@ -69,13 +67,17 @@ export default function OcrImage({
   const variantToClass = (v: Variant) => {
     switch (v) {
       case "forbidden":
-        return "border-red-500 ";
+        return "border-2 border-red-500";
       case "ok":
-        return "border-yellow-500 ";
+        return "border-2 border-yellow-500";
       case "child":
-        return "border-green-500 ";
+        return "border-2 border-green-500";
+      case "forbidden_child":
+        return "border-2 border-red-500 ring-2 ring-green-500";
+      case "ok_child":
+        return "border-2 border-yellow-500 ring-2 ring-green-500";
       default:
-        return "border-transparent";
+        return "border-2 border-transparent";
     }
   };
 
@@ -95,7 +97,7 @@ export default function OcrImage({
             <button
               key={i}
               type="button"
-              className={`absolute border-1 ${className} rounded-sm`}
+              className={`absolute ${className} rounded-sm`}
               style={rect}
               onClick={() => onPick?.(b.description)}
               aria-label={b.description}

@@ -32,12 +32,10 @@ type BCookRow = {
   phase5: string | null;
 };
 
-const toGardenId = (memberId: string): number | null => {
+const toGardenId = (memberId: string): string | null => {
   const digits = memberId.replace(/\D/g, "");
   if (!digits) return null;
-  const value = Number(digits);
-  if (!Number.isFinite(value)) return null;
-  return value;
+  return digits;
 };
 
 export function useMenuData(memberId?: string | null, reloadTick?: number) {

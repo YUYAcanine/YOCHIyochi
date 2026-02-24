@@ -2,7 +2,7 @@
 import React from "react";
 import type { PhaseKey } from "@/types/food";
 
-type Variant = "forbidden" | "ok" | "none" | "child";
+type Variant = "forbidden" | "ok" | "none" | "child" | "forbidden_child" | "ok_child";
 
 type Props = {
   description?: string;
@@ -17,6 +17,8 @@ const classesByVariant: Record<Variant, string> = {
   ok: "bg-yellow-100 border-yellow-400 text-zinc-800",
   none: "bg-gray-100 border-gray-400 text-zinc-800",
   child: "bg-green-50 border-green-200 text-green-800",
+  forbidden_child: "bg-red-100 border-red-400 text-red-800",
+  ok_child: "bg-yellow-100 border-yellow-400 text-zinc-800",
 };
 
 export default function PhaseDescriptionBox({

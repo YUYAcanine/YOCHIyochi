@@ -5,19 +5,20 @@ import { Search, X } from "lucide-react";
 import { canon } from "@/lib/textNormalize";
 import Ribbon from "@/components/Ribbon";
 import BottomDrawer from "@/components/BottomDrawer";
+import PhaseSelectDropdown from "@/components/PhaseSelectDropdown";
+import { PHASE_LABELS } from "@/components/checklist";
 import { useMenuData } from "@/hooks/useMenuData";
 import { useAccidentInfo } from "@/hooks/useAccidentInfo";
 import type { PhaseKey } from "@/types/food";
 
 type Variant = "forbidden" | "ok" | "none";
-
 type MenuInfo = Partial<Record<PhaseKey, string>>;
 
 type FoodItem = MenuInfo & {
   food_name: string;
 };
 
-export default function Page6() {
+export default function SearchPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<FoodItem[]>([]);
   const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null);
@@ -27,8 +28,7 @@ export default function Page6() {
   const [memberId, setMemberId] = useState<string | null>(null);
 
   const { menuMap, foodIdMap } = useMenuData(memberId);
-  const { accidentInfo, showAccidentInfo, fetchByFoodId, reset } =
-    useAccidentInfo();
+  const { accidentInfo, showAccidentInfo, fetchByFoodId, reset } = useAccidentInfo();
 
   useEffect(() => {
     setIsClient(true);
@@ -74,14 +74,15 @@ export default function Page6() {
 
     const key = canon(selectedFood.food_name);
     const foodId = key ? foodIdMap[key] : null;
-    await fetchByFoodId(foodId ?? null);
+    await fetchByFoodId(foodId ?? null, memberId);
   };
 
   const classify = (food: FoodItem | null): { variant: Variant; text: string } => {
     const val = food?.[phase]?.trim();
     if (!val) return { variant: "none", text: "" };
-    if (val === "食べさせてはいけません。" || val === "食べさせてはいけません")
-      return { variant: "forbidden", text: "食べさせてはいけません" };
+    if (val === "食べさせてはいけません。" || val === "食べさせてはいけません") {
+      return { variant: "forbidden", text: "食べさせてはいけません。" };
+    }
     return { variant: "ok", text: val };
   };
 
@@ -114,7 +115,14 @@ export default function Page6() {
 
       <div className="flex-grow pt-24 px-4">
         <div className="max-w-2xl mx-auto">
-          <div className="mb-8 mt-8">
+          <PhaseSelectDropdown
+            phase={phase}
+            onChangePhase={setPhase}
+            labels={PHASE_LABELS}
+            className="mb-4 mt-6 flex justify-end"
+          />
+
+          <div className="mb-8 mt-6">
             <div className="flex gap-2">
               <div className="flex-1 relative">
                 <input
@@ -127,13 +135,13 @@ export default function Page6() {
                   onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                   placeholder="食材名を入力してください"
                   disabled={!isClient}
-                  className="w-full px-4 py-3 pr-10 border border-[#D3C5B9] rounded-xl 
-                             bg-white text-[#4D3F36] placeholder-[#9CA3AF] focus:outline-none focus:ring-2 focus:ring-[#9c7b6c]"
+                  className="w-full px-4 py-3 pr-10 border border-[#D3C5B9] rounded-xl bg-white text-[#4D3F36] placeholder-[#9CA3AF] focus:outline-none focus:ring-2 focus:ring-[#9c7b6c]"
                 />
                 {searchQuery && (
                   <button
                     onClick={() => setSearchQuery("")}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9CA3AF] hover:text-[#6B7280]"
+                    aria-label="入力をクリア"
                   >
                     <X className="w-5 h-5" />
                   </button>
@@ -147,6 +155,7 @@ export default function Page6() {
                     ? "bg-[#9c7b6c] hover:bg-[#a88877] text-white"
                     : "bg-[#9c7b6c] text-white opacity-50"
                 }`}
+                aria-label="検索"
               >
                 <Search className="w-5 h-5" />
               </button>
@@ -157,16 +166,13 @@ export default function Page6() {
             <div className="mb-8">
               {searchResults.length > 0 ? (
                 <div>
-                  <h2 className="text-base font-semibold text-[#3A2C25] mb-4">
-                    検索結果
-                  </h2>
+                  <h2 className="text-base font-semibold text-[#3A2C25] mb-4">検索結果</h2>
                   <div className="space-y-2">
                     {searchResults.map((food, index) => (
                       <button
-                        key={index}
+                        key={`${food.food_name}-${index}`}
                         onClick={() => handleSelectFood(food)}
-                        className="w-full p-4 text-left bg-white border border-[#D3C5B9] rounded-xl 
-                                   hover:bg-[#F8E8E8] transition text-[#4D3F36]"
+                        className="w-full p-4 text-left bg-white border border-[#D3C5B9] rounded-xl hover:bg-[#F8E8E8] transition text-[#4D3F36]"
                       >
                         {food.food_name}
                       </button>
@@ -178,35 +184,6 @@ export default function Page6() {
                   <p className="text-[#6B7280] text-base">検索結果がありません。</p>
                 </div>
               )}
-            </div>
-          )}
-
-          {selectedFood && (
-            <div className="mb-6">
-              <h3 className="text-base font-semibold text-[#3A2C25] mb-4">
-                お子様の年齢を選択してください
-              </h3>
-              <div className="grid grid-cols-5 gap-2">
-                {[
-                  { key: "phase1", label: "5-6ヶ月" },
-                  { key: "phase2", label: "7-8ヶ月" },
-                  { key: "phase3", label: "9-11ヶ月" },
-                  { key: "phase4", label: "1-1.5歳" },
-                  { key: "phase5", label: "1.5-2歳" },
-                ].map(({ key, label }) => (
-                  <button
-                    key={key}
-                    onClick={() => setPhase(key as PhaseKey)}
-                    className={`px-3 py-2 text-sm rounded-lg font-medium transition ${
-                      phase === key
-                        ? "bg-[#9c7b6c] text-white"
-                        : "bg-white border border-[#D3C5B9] text-[#4D3F36] hover:bg-[#F8E8E8]"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
             </div>
           )}
         </div>

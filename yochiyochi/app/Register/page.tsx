@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronUp, Pencil, Search, X } from "lucide-react";
 import { useMenuData } from "@/hooks/useMenuData";
@@ -94,6 +94,9 @@ export default function Page4() {
   const [showForm, setShowForm] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [expandedNames, setExpandedNames] = useState<Record<string, boolean>>({});
+  const [cookEditTargetName, setCookEditTargetName] = useState<string | null>(null);
+  const topFormRef = useRef<HTMLDivElement | null>(null);
+  const inlineFoodFormRefs = useRef<Record<string, HTMLFormElement | null>>({});
 
   const [answerItems, setAnswerItems] = useState<AnswerItem[]>([]);
   const [mealItems, setMealItems] = useState<MealItem[]>([]);
@@ -268,6 +271,25 @@ export default function Page4() {
     setSearchText("");
   }, [activeTab]);
 
+  const scrollToNode = (node: HTMLElement | null) => {
+    if (!node) return;
+    node.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  useEffect(() => {
+    if (!showForm) return;
+    requestAnimationFrame(() => {
+      scrollToNode(topFormRef.current);
+    });
+  }, [showForm, activeTab, editingAccidentId, cookFoodName]);
+
+  useEffect(() => {
+    if (!foodEditTargetName) return;
+    requestAnimationFrame(() => {
+      scrollToNode(inlineFoodFormRefs.current[foodEditTargetName] ?? null);
+    });
+  }, [foodEditTargetName, expandedNames]);
+
   if (!authChecked) return null;
 
   const toggleExpanded = (name: string) => {
@@ -287,6 +309,7 @@ export default function Page4() {
     setAccidentPublic(false);
     setEditingAccidentId(null);
     setCookFoodName("");
+    setCookEditTargetName(null);
     setCookDrafts({
       phase1: "",
       phase2: "",
@@ -315,6 +338,57 @@ export default function Page4() {
     loadCookDraftFromName(foodName);
     setShowForm(true);
     setFormMsg(null);
+  };
+
+  const startInlineCookEdit = (foodName: string) => {
+    loadCookDraftFromName(foodName);
+    setCookEditTargetName(foodName);
+    setExpandedNames((prev) => ({ ...prev, [foodName]: true }));
+    setFormMsg(null);
+  };
+
+  const cancelInlineCookEdit = () => {
+    if (cookEditTargetName) {
+      loadCookDraftFromName(cookEditTargetName);
+    }
+    setCookEditTargetName(null);
+    setFormMsg(null);
+  };
+
+  const handleInlineCookSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormMsg(null);
+
+    if (!cookEditTargetName) return;
+    if (!memberId) {
+      setFormMsg("ログイン情報を確認してください。");
+      return;
+    }
+
+    setSubmitLoading(true);
+    try {
+      const res = await fetch("/api/a-cook", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          member_id: memberId,
+          food_name: cookEditTargetName,
+          ...cookDrafts,
+        }),
+      });
+      if (!res.ok) throw new Error("save failed");
+
+      setFormMsg("更新しました。");
+      setReloadTick((prev) => prev + 1);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("yochi-cook-updated"));
+      }
+      setCookEditTargetName(null);
+    } catch {
+      setFormMsg("更新に失敗しました。");
+    } finally {
+      setSubmitLoading(false);
+    }
   };
 
   const openEditorForName = (name: string) => {
@@ -593,6 +667,62 @@ export default function Page4() {
     }
   };
 
+  const startInlineAccidentEdit = (item: AccidentItem) => {
+    setEditingAccidentId(item.id);
+    setAccidentChildName(item.child_name);
+    setAccidentFood(item.food_name);
+    setAccidentDetail(item.accident_content);
+    setAccidentPublic(item.public === true);
+    setShowForm(false);
+    setFormMsg(null);
+  };
+
+  const cancelInlineAccidentEdit = () => {
+    setEditingAccidentId(null);
+    setAccidentChildName("");
+    setAccidentFood("");
+    setAccidentDetail("");
+    setAccidentPublic(false);
+    setFormMsg(null);
+  };
+
+  const handleInlineAccidentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormMsg(null);
+
+    if (editingAccidentId == null || !accidentChildName || !accidentFood || !accidentDetail || !memberId) {
+      setFormMsg("すべての必須項目を入力してください。");
+      return;
+    }
+
+    setSubmitLoading(true);
+    try {
+      const res = await fetch("/api/accidents", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editingAccidentId,
+          child_name: accidentChildName,
+          food_name: accidentFood,
+          accident_content: accidentDetail,
+          public: accidentPublic,
+          food_id: accidentFoodId,
+          member_id: memberId,
+        }),
+      });
+
+      if (!res.ok) throw new Error("save failed");
+
+      setFormMsg("更新しました。");
+      setReloadTick((prev) => prev + 1);
+      setEditingAccidentId(null);
+    } catch {
+      setFormMsg("更新に失敗しました。");
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
+
   const handleCookSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormMsg(null);
@@ -747,7 +877,13 @@ export default function Page4() {
             )}
 
             {foodEditTargetName === name && (
-              <form onSubmit={handleInlineFoodSubmit} className="space-y-4 rounded-md bg-white p-4">
+              <form
+                ref={(node) => {
+                  inlineFoodFormRefs.current[name] = node;
+                }}
+                onSubmit={handleInlineFoodSubmit}
+                className="space-y-4 rounded-md bg-white p-4"
+              >
                 <div className="grid grid-cols-2 gap-4">
                   <label className="text-base font-medium text-[#2f2a27]">
                     園児名
@@ -950,7 +1086,7 @@ export default function Page4() {
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  openCookEditor(foodName);
+                  startInlineCookEdit(foodName);
                 }}
                 className="rounded p-1 text-[#2f2a27] hover:bg-[#e7ddd3]"
                 aria-label={`${foodName}を編集`}
@@ -973,14 +1109,57 @@ export default function Page4() {
 
         {expandedNames[foodName] && (
           <div className="mt-4 space-y-3">
-            {phases.map((phase) => (
-              <div key={phase.label} className="grid grid-cols-[5.6rem_1fr] items-center gap-2">
-                <div className="text-base font-bold text-[#2f2a27]">{phase.label}</div>
-                <div className="rounded border-[3px] border-[#7f7f7f] bg-[#fafafa] px-3 py-2 text-base text-[#2f2a27]">
-                  {phase.value?.trim() ? phase.value : "未登録"}
+            {cookEditTargetName === foodName ? (
+              <form onSubmit={handleInlineCookSubmit} className="space-y-3">
+                {[
+                  { key: "phase1", label: "離乳初期" },
+                  { key: "phase2", label: "離乳中期" },
+                  { key: "phase3", label: "離乳後期" },
+                  { key: "phase4", label: "完了期" },
+                  { key: "phase5", label: "幼児期" },
+                ].map((phase) => (
+                  <div key={phase.key} className="grid grid-cols-[5.6rem_1fr] items-center gap-2">
+                    <div className="text-base font-bold text-[#2f2a27]">{phase.label}</div>
+                    <input
+                      type="text"
+                      value={cookDrafts[phase.key as keyof CookDrafts]}
+                      onChange={(e) =>
+                        setCookDrafts((prev) => ({
+                          ...prev,
+                          [phase.key]: e.target.value,
+                        }))
+                      }
+                      className="h-11 w-full rounded border-[3px] border-[#7f7f7f] bg-transparent px-2"
+                    />
+                  </div>
+                ))}
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={cancelInlineCookEdit}
+                    className="h-11 rounded border-[3px] border-[#B79074] bg-[#FFFDF8] text-base font-bold text-[#B79074]"
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitLoading}
+                    className="h-11 rounded bg-[#B79074] text-base font-bold text-white disabled:opacity-70"
+                  >
+                    {submitLoading ? "送信中" : "保存"}
+                  </button>
                 </div>
-              </div>
-            ))}
+              </form>
+            ) : (
+              phases.map((phase) => (
+                <div key={phase.label} className="grid grid-cols-[5.6rem_1fr] items-center gap-2">
+                  <div className="text-base font-bold text-[#2f2a27]">{phase.label}</div>
+                  <div className="rounded border-[3px] border-[#7f7f7f] bg-[#fafafa] px-3 py-2 text-base text-[#2f2a27]">
+                    {phase.value?.trim() ? phase.value : "未登録"}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         )}
       </div>
@@ -1083,7 +1262,10 @@ export default function Page4() {
           </button>
 
           {showForm && (
-            <div className="rounded-b-md border-x-[3px] border-b-[3px] border-[#b79074] bg-white p-4">
+            <div
+              ref={topFormRef}
+              className="rounded-b-md border-x-[3px] border-b-[3px] border-[#b79074] bg-white p-4"
+            >
               {activeTab === "child" ? (
                 <form onSubmit={handleChildSubmit} className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
@@ -1290,24 +1472,77 @@ export default function Page4() {
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-base font-bold text-[#2f2a27]">{item.food_name}</p>
-                        <p className="mt-1 text-sm text-[#2f2a27]">{item.accident_content}</p>
-                        <p className="mt-1 text-xs text-[#6b5a4e]">
-                          {item.child_name} / {formatDateTime(item.created_at)}
-                        </p>
+                      <div className="w-full">
+                        {editingAccidentId === item.id ? (
+                          <form onSubmit={handleInlineAccidentSubmit} className="space-y-3">
+                            <label className="block text-sm font-medium text-[#2f2a27]">
+                              園児名
+                              <input
+                                type="text"
+                                list="child-name-options"
+                                value={accidentChildName}
+                                onChange={(e) => setAccidentChildName(e.target.value)}
+                                className="mt-1 h-10 w-full rounded border-[2px] border-[#7f7f7f] bg-white px-2"
+                              />
+                            </label>
+                            <label className="block text-sm font-medium text-[#2f2a27]">
+                              食材名
+                              <input
+                                type="text"
+                                list="a-cook-food-options"
+                                value={accidentFood}
+                                onChange={(e) => setAccidentFood(e.target.value)}
+                                className="mt-1 h-10 w-full rounded border-[2px] border-[#7f7f7f] bg-white px-2"
+                              />
+                            </label>
+                            <label className="block text-sm font-medium text-[#2f2a27]">
+                              ヒヤリハット内容
+                              <textarea
+                                value={accidentDetail}
+                                onChange={(e) => setAccidentDetail(e.target.value)}
+                                rows={3}
+                                className="mt-1 w-full rounded border-[2px] border-[#7f7f7f] bg-white p-2"
+                              />
+                            </label>
+                            <label className="inline-flex items-center gap-2 text-sm text-[#2f2a27]">
+                              <input
+                                type="checkbox"
+                                checked={accidentPublic}
+                                onChange={(e) => setAccidentPublic(e.target.checked)}
+                                className="h-4 w-4"
+                              />
+                              公開する
+                            </label>
+                            <div className="grid grid-cols-2 gap-3">
+                              <button
+                                type="button"
+                                onClick={cancelInlineAccidentEdit}
+                                className="h-10 rounded border-[2px] border-[#B79074] bg-[#FFFDF8] text-sm font-bold text-[#B79074]"
+                              >
+                                キャンセル
+                              </button>
+                              <button
+                                type="submit"
+                                disabled={submitLoading}
+                                className="h-10 rounded bg-[#B79074] text-sm font-bold text-white disabled:opacity-70"
+                              >
+                                {submitLoading ? "送信中" : "保存"}
+                              </button>
+                            </div>
+                          </form>
+                        ) : (
+                          <>
+                            <p className="text-base font-bold text-[#2f2a27]">{item.food_name}</p>
+                            <p className="mt-1 text-sm text-[#2f2a27]">{item.accident_content}</p>
+                            <p className="mt-1 text-xs text-[#6b5a4e]">
+                              {item.child_name} / {formatDateTime(item.created_at)}
+                            </p>
+                          </>
+                        )}
                       </div>
                       <button
                         type="button"
-                        onClick={() => {
-                          setEditingAccidentId(item.id);
-                          setAccidentChildName(item.child_name);
-                          setAccidentFood(item.food_name);
-                          setAccidentDetail(item.accident_content);
-                          setAccidentPublic(item.public === true);
-                          setShowForm(true);
-                          setFormMsg(null);
-                        }}
+                        onClick={() => startInlineAccidentEdit(item)}
                         className="rounded p-1 text-[#2f2a27] hover:bg-[#e7ddd3]"
                         aria-label={`${item.food_name}のヒヤリハットを編集`}
                       >

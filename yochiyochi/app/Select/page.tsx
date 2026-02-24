@@ -14,6 +14,7 @@ import { useRouter } from "next/navigation";
 import Ribbon from "@/components/Ribbon";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { PHASE_LABELS, useChecklist } from "@/components/checklist";
+import PhaseSelectDropdown from "@/components/PhaseSelectDropdown";
 
 import { Camera, Image as ImageIcon, Search } from "lucide-react";
 import type { ChangeEvent, ComponentProps } from "react";
@@ -36,11 +37,12 @@ type OcrImageProps = ComponentProps<typeof OcrImage>;
 type Box = OcrImageProps["boxes"][number];
 type ScaleInfo = OcrImageProps["scale"];
 
-type Variant = "forbidden" | "ok" | "none" | "child";
+type Variant = "forbidden" | "ok" | "none" | "child" | "forbidden_child" | "ok_child";
+type CookVariant = "forbidden" | "ok" | "none";
 
 type Classified = {
   variant: Variant;
-  cookVariant: Variant;
+  cookVariant: CookVariant;
   cookText: string;
   childText: string;
 };
@@ -53,18 +55,23 @@ type MenuInfo = {
   phase5?: string;
 };
 
+type ChildFoodItem = {
+  child_name: string;
+  no_eat: string;
+  can_eat: boolean | null;
+  note: string | null;
+};
+
 const DEFAULT_SCALE: ScaleInfo = { scale: 1, offsetX: 0, offsetY: 0 };
 
 /* 見た目用 */
 const RIBBON_HEIGHT = "6rem" as const;
 const RIBBON_SHIFT = "7rem" as const;
 
-const toGardenId = (memberId: string): number | null => {
+const toGardenId = (memberId: string): string | null => {
   const digits = memberId.replace(/\D/g, "");
   if (!digits) return null;
-  const value = Number(digits);
-  if (!Number.isFinite(value)) return null;
-  return value;
+  return digits;
 };
 
 /* phase を menu のキーに変換（保険） */
@@ -85,7 +92,7 @@ export default function Page2() {
   const router = useRouter();
 
   // 現在のフェーズ
-  const { phase, childMode, children } = useChecklist();
+  const { phase, setPhase, children } = useChecklist();
 
   const [memberId, setMemberId] = useState<string | null>(null);
   const [isEditingCook, setIsEditingCook] = useState(false);
@@ -98,6 +105,7 @@ export default function Page2() {
   });
   const [cookSaving, setCookSaving] = useState(false);
   const [cookMessage, setCookMessage] = useState<string | null>(null);
+  const [enjiFoodItems, setEnjiFoodItems] = useState<ChildFoodItem[]>([]);
   const lastSelectedTextRef = useRef<string>("");
 
   useEffect(() => {
@@ -120,9 +128,131 @@ export default function Page2() {
     updateMenuForKey: (key: string, phaseKey: keyof MenuInfo, value: string | null) => void;
   };
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchEnjiFoodItems = async () => {
+      if (!memberId) {
+        setEnjiFoodItems([]);
+        return;
+      }
+
+      const rawGardenId = memberId.trim();
+      const digitGardenId = memberId.replace(/\D/g, "");
+      const gardenCandidates = Array.from(
+        new Set([rawGardenId, digitGardenId].filter((id) => id.length > 0))
+      );
+      if (gardenCandidates.length === 0) {
+        setEnjiFoodItems([]);
+        return;
+      }
+
+      const { data: enjiFoodData, error: enjiFoodError } = await supabase
+        .from("B_enjifood")
+        .select("garden_id, enji_id, food_id, no_eat, note")
+        .in("garden_id", gardenCandidates)
+        .eq("no_eat", true);
+      if (enjiFoodError || !enjiFoodData) {
+        if (!cancelled) setEnjiFoodItems([]);
+        return;
+      }
+
+      const enjiRows = enjiFoodData as Array<{
+        garden_id: string | null;
+        enji_id: number | null;
+        food_id: number | null;
+        no_eat: boolean | null;
+        note: string | null;
+      }>;
+
+      const enjiIds = Array.from(
+        new Set(
+          enjiRows
+            .map((row) => row.enji_id)
+            .filter((id): id is number => typeof id === "number")
+        )
+      );
+      const foodIds = Array.from(
+        new Set(
+          enjiRows
+            .map((row) => row.food_id)
+            .filter((id): id is number => typeof id === "number")
+        )
+      );
+
+      const [{ data: bEnjiData }, { data: aCookData }, { data: bCookData }] = await Promise.all([
+        enjiIds.length > 0
+          ? supabase
+              .from("B_enji")
+              .select("id, name")
+              .in("id", enjiIds)
+              .in("garden_id", gardenCandidates)
+          : Promise.resolve({ data: [] }),
+        foodIds.length > 0
+          ? supabase.from("A_cook").select("id, food_name").in("id", foodIds)
+          : Promise.resolve({ data: [] }),
+        foodIds.length > 0
+          ? supabase
+              .from("B_cook")
+              .select("food_id, food_name")
+              .in("food_id", foodIds)
+              .in("garden_id", gardenCandidates)
+          : Promise.resolve({ data: [] }),
+      ]);
+
+      const enjiNameMap = new Map<number, string>();
+      ((bEnjiData ?? []) as Array<{ id: number; name: string | null }>).forEach((row) => {
+        if (typeof row.id === "number") {
+          enjiNameMap.set(row.id, row.name?.trim() ?? "");
+        }
+      });
+
+      const foodNameMap = new Map<number, string>();
+      ((aCookData ?? []) as Array<{ id: number; food_name: string | null }>).forEach((row) => {
+        if (typeof row.id === "number" && typeof row.food_name === "string") {
+          foodNameMap.set(row.id, row.food_name);
+        }
+      });
+      ((bCookData ?? []) as Array<{ food_id: number | null; food_name: string | null }>).forEach(
+        (row) => {
+          if (typeof row.food_id === "number" && typeof row.food_name === "string") {
+            foodNameMap.set(row.food_id, row.food_name);
+          }
+        }
+      );
+
+      const nextItems: ChildFoodItem[] = enjiRows
+        .map((row) => {
+          const foodId = row.food_id;
+          const enjiId = row.enji_id;
+          if (typeof foodId !== "number" || typeof enjiId !== "number") return null;
+          const childName = enjiNameMap.get(enjiId) ?? "";
+          const foodName = foodNameMap.get(foodId) ?? "";
+          if (!foodName) return null;
+          return {
+            child_name: childName,
+            no_eat: foodName,
+            can_eat: row.no_eat === null ? null : !row.no_eat,
+            note: row.note ?? null,
+          };
+        })
+        .filter((item): item is ChildFoodItem => item !== null);
+
+      if (!cancelled) {
+        setEnjiFoodItems(nextItems);
+      }
+    };
+
+    fetchEnjiFoodItems();
+    return () => {
+      cancelled = true;
+    };
+  }, [memberId]);
+
   const childFoodMap = useMemo(() => {
     const map = new Map<string, Array<{ name: string; note: string | null }>>();
-    for (const child of children) {
+    const mergedChildren = [...children, ...enjiFoodItems];
+    for (const child of mergedChildren) {
       if (child.can_eat === true) continue;
       const items = (child.no_eat ?? "")
         .split(/[,\s/\u3001\u30fb\uFF0C\uFF0F]+/)
@@ -136,7 +266,7 @@ export default function Page2() {
       }
     }
     return map;
-  }, [children]);
+  }, [children, enjiFoodItems]);
 
   const getChildEntries = useCallback(
     (raw?: string) => {
@@ -185,37 +315,32 @@ export default function Page2() {
       const phaseKey = toMenuPhaseKey(phase);
       const val = info?.[phaseKey]?.trim();
       const forbiddenText = "食べさせてはいけません。";
-      const cookVariant: Variant =
+      const cookVariant: CookVariant =
         !val
           ? "none"
           : val === forbiddenText || val === "食べさせてはいけません"
             ? "forbidden"
             : "ok";
 
-      if (childMode) {
-        if (!childEntries) {
-          return { variant: "none", cookVariant: "none", cookText: "", childText: "" };
+      if (cookVariant === "none") {
+        if (childEntries) {
+          return { variant: "child", cookVariant: "none", cookText: "", childText };
         }
+        return { variant: "none", cookVariant: "none", cookText: "", childText: "" };
+      }
+
+      if (childEntries) {
         return {
-          variant: "child",
+          variant: cookVariant === "forbidden" ? "forbidden_child" : "ok_child",
           cookVariant,
           cookText: val ?? "",
           childText,
         };
       }
 
-      if (cookVariant === "none") {
-        return { variant: "none", cookVariant: "none", cookText: "", childText: "" };
-      }
-
-      return {
-        variant: cookVariant,
-        cookVariant,
-        cookText: val ?? "",
-        childText,
-      };
+      return { variant: cookVariant, cookVariant, cookText: val ?? "", childText: "" };
     },
-    [menuMap, phase, childMode, getChildEntries, formatChildNotes]
+    [menuMap, phase, getChildEntries, formatChildNotes]
   );
 
   // none は表示しない（重要なboxだけ見せる）
@@ -276,7 +401,7 @@ export default function Page2() {
 
   /* 画像選択 */
   const handlePickFile = useCallback(
-    async (file: File, source: "camera" | "file") => {
+    async (file: File) => {
       const dataUrl = await pickImageAsDataUrl(file);
       setImgSrc(dataUrl);
       setSelectedText("");
@@ -415,57 +540,65 @@ export default function Page2() {
   }, [router]);
 
   /* input[type=file] 共通ハンドラ */
-  const handleChange =
-    (source: "camera" | "file") =>
-    (e: ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      handlePickFile(file, source);
+      handlePickFile(file);
       e.target.value = ""; // 同じ画像を再選択できるように
     };
 
   /* 画像未選択時のUI */
   const UploadView = (
-    <div className="flex flex-col flex-grow items-center justify-center">
-      <div className="flex flex-col gap-8 items-center justify-center flex-grow mt-8">
-        <div className="flex gap-8 items-center justify-center">
-          <div className="flex flex-col items-center gap-3">
-            <p className="text-[#6B5A4E] text-lg font-bold">カメラで撮る</p>
-            <label className="w-32 h-32 bg-[#E8DCD0] border border-[#D3C5B9] flex items-center justify-center rounded-xl cursor-pointer">
-              <Camera className="w-10 h-10" />
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={handleChange("camera")}
-                className="hidden"
-              />
-            </label>
-          </div>
-
-          <div className="flex flex-col items-center gap-3">
-            <p className="text-[#6B5A4E] text-lg font-bold">アルバムから選ぶ</p>
-            <label className="w-32 h-32 bg-[#E8DCD0] border border-[#D3C5B9] flex items-center justify-center rounded-xl cursor-pointer">
-              <ImageIcon className="w-10 h-10" />
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleChange("file")}
-                className="hidden"
-              />
-            </label>
+    <div className="mx-auto w-full max-w-3xl px-8 pt-10">
+      <div className="space-y-8">
+        <div className="flex items-center gap-4">
+          <label className="flex h-20 w-20 shrink-0 cursor-pointer items-center justify-center rounded-md border-2 border-[#b79f86] bg-[#E8DCD0] md:h-24 md:w-24">
+            <Camera className="h-10 w-10 text-[#6B5A4E] md:h-12 md:w-12" />
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleChange}
+              className="hidden"
+            />
+          </label>
+          <div className="text-[#2f2a27]">
+            <p className="text-xl font-bold text-[#5C3A2E]">写真モード</p>
+            <p className="text-sm">献立表の写真をとるだけで</p>
+            <p className="text-sm">材料名を認識して、調理における注意点を表示します</p>
           </div>
         </div>
 
-        <div className="flex flex-col items-center gap-3">
-          <p className="text-[#6B5A4E] text-lg font-bold">検索する</p>
+        <div className="flex items-center gap-4">
+          <label className="flex h-20 w-20 shrink-0 cursor-pointer items-center justify-center rounded-md border-2 border-[#b79f86] bg-[#E8DCD0] md:h-24 md:w-24">
+            <ImageIcon className="h-10 w-10 text-[#6B5A4E] md:h-12 md:w-12" />
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleChange}
+              className="hidden"
+            />
+          </label>
+          <div className="text-[#2f2a27]">
+            <p className="text-xl font-bold text-[#5C3A2E]">画像モード</p>
+            <p className="text-sm">写真にとった献立表を選択し</p>
+            <p className="text-sm">材料名を認識して、調理における注意点を表示します</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4">
           <button
             type="button"
             onClick={handleGoSearch}
-            className="w-32 h-32 bg-[#E8DCD0] border border-[#D3C5B9] flex items-center justify-center rounded-xl hover:bg-[#D3C5B9] transition"
+            className="flex h-20 w-20 shrink-0 items-center justify-center rounded-md border-2 border-[#b79f86] bg-[#E8DCD0] md:h-24 md:w-24"
+            aria-label="検索モードへ"
           >
-            <Search className="w-10 h-10" />
+            <Search className="h-10 w-10 text-[#6B5A4E] md:h-12 md:w-12" />
           </button>
+          <div className="text-[#2f2a27]">
+            <p className="text-xl font-bold text-[#5C3A2E]">検索モード</p>
+            <p className="text-sm">材料名で検索して、調理における注意点を表示します</p>
+          </div>
         </div>
       </div>
     </div>
@@ -487,9 +620,7 @@ export default function Page2() {
         alt="よちヨチ ロゴ"
         heightClass="h-24"
         bgClass="bg-[#F0E4D8]"
-        containerClassName={`transition-transform duration-500 will-change-transform ${
-          drawerOpen ? "-translate-y-[var(--ribbon-shift)]" : "translate-y-0"
-        }`}
+        containerClassName="translate-y-0"
         logoClassName="h-20 w-auto object-contain"
         rightContent={
           memberId ? (
@@ -501,12 +632,12 @@ export default function Page2() {
       />
 
       {imgSrc && (
-        <div className="absolute top-24 left-4 z-30">
-          <div className="flex items-center gap-2 rounded-full border border-[#D6C2B4] bg-white/90 px-3 py-1 text-xs font-semibold text-[#5C3A2E] shadow-sm">
-            <span>{childMode ? "園児モード" : "乳児期別モード"}</span>
-            {!childMode && <span>・{PHASE_LABELS[phase]}</span>}
-          </div>
-        </div>
+        <PhaseSelectDropdown
+          phase={phase as PhaseKey}
+          onChangePhase={setPhase}
+          labels={PHASE_LABELS}
+          className="absolute top-28 right-4 z-30"
+        />
       )}
 
       <div className="flex-grow pt-24">

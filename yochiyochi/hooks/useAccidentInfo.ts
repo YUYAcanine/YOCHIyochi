@@ -12,12 +12,10 @@ type HiyariRow = {
   created_at: string;
 };
 
-const toGardenId = (memberId: string): number | null => {
+const toGardenId = (memberId: string): string | null => {
   const digits = memberId.replace(/\D/g, "");
   if (!digits) return null;
-  const value = Number(digits);
-  if (!Number.isFinite(value)) return null;
-  return value;
+  return digits;
 };
 
 export function useAccidentInfo() {
@@ -110,4 +108,3 @@ export function useAccidentInfo() {
 
   return { accidentInfo, showAccidentInfo, fetchByFoodId, reset };
 }
-

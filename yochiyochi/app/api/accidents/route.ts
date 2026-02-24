@@ -12,15 +12,13 @@ type AccidentRow = {
   public: boolean | null;
 };
 
-const toGardenId = (memberId: string): number | null => {
+const toGardenId = (memberId: string): string | null => {
   const digits = memberId.replace(/\D/g, "");
   if (!digits) return null;
-  const value = Number(digits);
-  if (!Number.isFinite(value)) return null;
-  return value;
+  return digits;
 };
 
-const resolveFoodId = async (gardenId: number, foodName: string): Promise<number | null> => {
+const resolveFoodId = async (gardenId: string, foodName: string): Promise<number | null> => {
   const trimmed = foodName.trim();
   if (!trimmed) return null;
 
@@ -50,7 +48,7 @@ const resolveFoodId = async (gardenId: number, foodName: string): Promise<number
   return Number.isFinite(id) ? id : null;
 };
 
-const resolveEnjiId = async (gardenId: number, childName: string): Promise<number | null> => {
+const resolveEnjiId = async (gardenId: string, childName: string): Promise<number | null> => {
   const trimmed = childName.trim();
   if (!trimmed) return null;
 
@@ -67,7 +65,7 @@ const resolveEnjiId = async (gardenId: number, childName: string): Promise<numbe
   return Number.isFinite(id) ? id : null;
 };
 
-const buildFoodNameMap = async (foodIds: number[], gardenId?: number) => {
+const buildFoodNameMap = async (foodIds: number[], gardenId?: string) => {
   const foodNameMap = new Map<number, string>();
   if (foodIds.length === 0) return foodNameMap;
 
@@ -100,7 +98,7 @@ const buildFoodNameMap = async (foodIds: number[], gardenId?: number) => {
 const mapAccidentItems = async (
   accidents: AccidentRow[],
   enjiRows: Array<{ id: number; name: string | null }>,
-  gardenId?: number
+  gardenId?: string
 ) => {
   const enjiNameMap = new Map<number, string>(
     enjiRows.map((row) => [row.id, (row.name ?? "").trim()])
@@ -331,4 +329,3 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: "更新に失敗しました" }, { status: 500 });
   }
 }
-

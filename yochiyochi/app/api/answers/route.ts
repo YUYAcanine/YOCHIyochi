@@ -9,12 +9,10 @@ type MetaPayload = {
   note: string;
 };
 
-const toGardenId = (memberId: string): number | null => {
+const toGardenId = (memberId: string): string | null => {
   const digits = memberId.replace(/\D/g, "");
   if (!digits) return null;
-  const value = Number(digits);
-  if (!Number.isFinite(value)) return null;
-  return value;
+  return digits;
 };
 
 const toEnjiId = (memberId: string, childName: string): number => {
@@ -55,7 +53,7 @@ const decodeMeta = (raw: string | null) => {
   }
 };
 
-const resolveFoodId = async (gardenId: number, foodName: string): Promise<number | null> => {
+const resolveFoodId = async (gardenId: string, foodName: string): Promise<number | null> => {
   const trimmed = foodName.trim();
   if (!trimmed) return null;
 
@@ -212,4 +210,3 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "取得に失敗しました" }, { status: 500 });
   }
 }
-

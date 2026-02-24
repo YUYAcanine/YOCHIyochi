@@ -6,12 +6,10 @@ export const runtime = "nodejs";
 const isRecordType = (value: unknown): value is "growth" | "hiyari" =>
   value === "growth" || value === "hiyari";
 
-const toGardenId = (memberId: string): number | null => {
+const toGardenId = (memberId: string): string | null => {
   const digits = memberId.replace(/\D/g, "");
   if (!digits) return null;
-  const value = Number(digits);
-  if (!Number.isFinite(value)) return null;
-  return value;
+  return digits;
 };
 
 export async function POST() {
@@ -38,7 +36,7 @@ export async function GET(req: Request) {
     const normalizedLimit = Number.isNaN(limit) ? 5 : Math.min(limit, 200);
 
     let enjiRows: Array<{ id: number; name: string | null; age: number | null }> = [];
-    let gardenId: number | null = null;
+    let gardenId: string | null = null;
     if (memberId) {
       gardenId = toGardenId(memberId);
       if (gardenId == null) {
@@ -140,4 +138,3 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "取得に失敗しました" }, { status: 500 });
   }
 }
-

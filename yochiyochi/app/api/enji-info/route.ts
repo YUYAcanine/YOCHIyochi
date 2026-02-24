@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 type EnjiFoodRow = {
   id: number;
   created_at: string;
-  garden_id: number;
+  garden_id: string;
   enji_id: number;
   food_id: number | null;
   no_eat: boolean | null;
@@ -25,12 +25,10 @@ type CookRow = {
   food_name: string | null;
 };
 
-const toGardenId = (memberId: string): number | null => {
+const toGardenId = (memberId: string): string | null => {
   const digits = memberId.replace(/\D/g, "");
   if (!digits) return null;
-  const value = Number(digits);
-  if (!Number.isFinite(value)) return null;
-  return value;
+  return digits;
 };
 
 const readChildName = (row: EnjiRow): string =>
@@ -39,7 +37,7 @@ const readChildName = (row: EnjiRow): string =>
 const readAgeMonth = (row: EnjiRow): number =>
   Number(row.age ?? 0);
 
-const resolveFoodId = async (gardenId: number, foodName: string): Promise<number | null> => {
+const resolveFoodId = async (gardenId: string, foodName: string): Promise<number | null> => {
   const trimmed = foodName.trim();
   if (!trimmed) return null;
 
@@ -66,7 +64,7 @@ const resolveFoodId = async (gardenId: number, foodName: string): Promise<number
 };
 
 const upsertEnji = async (
-  gardenId: number,
+  gardenId: string,
   childName: string,
   ageMonth: number
 ): Promise<number | null> => {

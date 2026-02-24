@@ -19,12 +19,10 @@ const toText = (v: unknown): string | null => {
   return t.length > 0 ? t : null;
 };
 
-const toGardenId = (memberId: string): number | null => {
+const toGardenId = (memberId: string): string | null => {
   const digits = memberId.replace(/\D/g, "");
   if (!digits) return null;
-  const value = Number(digits);
-  if (!Number.isFinite(value)) return null;
-  return value;
+  return digits;
 };
 
 const nextAvailableFoodId = async (): Promise<number | null> => {
