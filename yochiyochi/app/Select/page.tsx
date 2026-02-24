@@ -59,6 +59,14 @@ const DEFAULT_SCALE: ScaleInfo = { scale: 1, offsetX: 0, offsetY: 0 };
 const RIBBON_HEIGHT = "6rem" as const;
 const RIBBON_SHIFT = "7rem" as const;
 
+const toGardenId = (memberId: string): number | null => {
+  const digits = memberId.replace(/\D/g, "");
+  if (!digits) return null;
+  const value = Number(digits);
+  if (!Number.isFinite(value)) return null;
+  return value;
+};
+
 /* phase を menu のキーに変換（保険） */
 const toMenuPhaseKey = (phase: PhaseKey): keyof MenuInfo => {
   if (
@@ -341,6 +349,11 @@ export default function Page2() {
       setCookMessage("会員情報が見つかりません。");
       return;
     }
+    const gardenId = toGardenId(memberId);
+    if (gardenId == null) {
+      setCookMessage("会員情報が不正です。");
+      return;
+    }
     const foodId = foodIdMap[key];
     if (!foodId) {
       setCookMessage("調理情報の編集に必要なIDが見つかりません。");
@@ -349,37 +362,43 @@ export default function Page2() {
 
     setCookSaving(true);
     try {
-      const phaseKeys: PhaseKey[] = ["phase1", "phase2", "phase3", "phase4", "phase5"];
-      const requests = phaseKeys.map(async (phaseKey) => {
-        const value = (cookDrafts[phaseKey] ?? "").trim();
-        if (!value.length) {
-          const { error } = await supabase
-            .from("yochiyochi_cook_overrides")
-            .delete()
-            .eq("member_id", memberId)
-            .eq("food_id", foodId)
-            .eq("phase", phaseKey);
-          if (error) throw error;
-          updateMenuForKey(key, phaseKey, null);
-          return;
-        }
+      const nextValues = {
+        phase1: (cookDrafts.phase1 ?? "").trim() || null,
+        phase2: (cookDrafts.phase2 ?? "").trim() || null,
+        phase3: (cookDrafts.phase3 ?? "").trim() || null,
+        phase4: (cookDrafts.phase4 ?? "").trim() || null,
+        phase5: (cookDrafts.phase5 ?? "").trim() || null,
+      };
 
+      const { data: existing, error: existingError } = await supabase
+        .from("B_cook")
+        .select("id")
+        .eq("garden_id", gardenId)
+        .eq("food_id", foodId)
+        .limit(1)
+        .maybeSingle();
+      if (existingError) throw existingError;
+
+      if (existing?.id != null) {
         const { error } = await supabase
-          .from("yochiyochi_cook_overrides")
-          .upsert(
-            {
-              member_id: memberId,
-              food_id: foodId,
-              phase: phaseKey,
-              description: value,
-            },
-            { onConflict: "member_id,food_id,phase" }
-          );
+          .from("B_cook")
+          .update(nextValues)
+          .eq("id", existing.id)
+          .eq("garden_id", gardenId);
         if (error) throw error;
-        updateMenuForKey(key, phaseKey, value);
-      });
+      } else {
+        const { error } = await supabase.from("B_cook").insert({
+          garden_id: gardenId,
+          food_id: foodId,
+          food_name: selectedText.trim(),
+          ...nextValues,
+        });
+        if (error) throw error;
+      }
 
-      await Promise.all(requests);
+      (["phase1", "phase2", "phase3", "phase4", "phase5"] as PhaseKey[]).forEach((phaseKey) => {
+        updateMenuForKey(key, phaseKey, nextValues[phaseKey]);
+      });
 
       setCookMessage("保存しました。");
       setIsEditingCook(false);

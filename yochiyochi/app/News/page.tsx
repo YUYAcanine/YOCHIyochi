@@ -7,7 +7,7 @@ import Ribbon from "@/components/Ribbon";
 type NewsItem = {
   id: number;
   food_name: string;
-  detail: string | null;
+  accident_content: string | null;
   created_at: string;
 };
 
@@ -22,7 +22,7 @@ export default function NewsPage() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch("/api/meal-records?type=hiyari&limit=200", {
+        const res = await fetch("/api/accidents?public=true&limit=200", {
           cache: "no-store",
         });
         if (!res.ok) throw new Error("fetch failed");
@@ -76,9 +76,9 @@ export default function NewsPage() {
                     <div className="text-sm font-semibold text-[#4D3F36]">
                       {item.food_name}
                     </div>
-                    {item.detail && (
+                    {item.accident_content && (
                       <p className="text-sm text-[#6B5A4E] mt-1">
-                        {item.detail}
+                        {item.accident_content}
                       </p>
                     )}
                     <div className="text-xs text-[#8A776A] mt-2">

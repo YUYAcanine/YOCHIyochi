@@ -23,7 +23,7 @@ type ACookRow = {
 };
 
 type BCookRow = {
-  food_id: number | string;
+  food_id: number | string | null;
   food_name: string | null;
   phase1: string | null;
   phase2: string | null;
@@ -104,7 +104,9 @@ export function useMenuData(memberId?: string | null, reloadTick?: number) {
             if (!bCookError && bCookData) {
               const overrides = bCookData as unknown as BCookRow[];
               for (const row of overrides) {
-                const keyFromFoodId = idToKey.get(String(row.food_id));
+                const numericFoodId = Number(row.food_id);
+                const hasFoodId = Number.isFinite(numericFoodId);
+                const keyFromFoodId = hasFoodId ? idToKey.get(String(numericFoodId)) : undefined;
                 const keyFromName = canon(row.food_name ?? "");
                 const key = keyFromFoodId ?? (keyFromName || undefined);
                 if (!key) continue;
@@ -112,6 +114,13 @@ export function useMenuData(memberId?: string | null, reloadTick?: number) {
                 const displayName = (row.food_name ?? "").trim();
                 if (displayName) {
                   nameSet.add(displayName);
+                }
+
+                if (hasFoodId) {
+                  idToKey.set(String(numericFoodId), key);
+                  if (!(key in idMap)) {
+                    idMap[key] = numericFoodId;
+                  }
                 }
 
                 map[key] = {

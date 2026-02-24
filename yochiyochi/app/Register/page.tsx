@@ -37,6 +37,15 @@ type MealItem = {
   created_at: string;
 };
 
+type AccidentItem = {
+  id: number;
+  child_name: string;
+  food_name: string;
+  accident_content: string;
+  public: boolean | null;
+  created_at: string;
+};
+
 const formatDateTime = (value: string) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
@@ -62,10 +71,11 @@ export default function Page4() {
   const [foodEditTargetName, setFoodEditTargetName] = useState<string | null>(null);
   const [editingSourceName, setEditingSourceName] = useState<string | null>(null);
 
-  const [mealChildName, setMealChildName] = useState("");
-  const [mealAgeMonth, setMealAgeMonth] = useState("");
-  const [mealFood, setMealFood] = useState("");
-  const [mealDetail, setMealDetail] = useState("");
+  const [accidentChildName, setAccidentChildName] = useState("");
+  const [accidentFood, setAccidentFood] = useState("");
+  const [accidentDetail, setAccidentDetail] = useState("");
+  const [accidentPublic, setAccidentPublic] = useState(false);
+  const [editingAccidentId, setEditingAccidentId] = useState<number | null>(null);
   const [cookFoodName, setCookFoodName] = useState("");
   const [cookDrafts, setCookDrafts] = useState<CookDrafts>({
     phase1: "",
@@ -87,16 +97,17 @@ export default function Page4() {
 
   const [answerItems, setAnswerItems] = useState<AnswerItem[]>([]);
   const [mealItems, setMealItems] = useState<MealItem[]>([]);
+  const [accidentItems, setAccidentItems] = useState<AccidentItem[]>([]);
   const [listLoading, setListLoading] = useState(false);
   const [reloadTick, setReloadTick] = useState(0);
 
   const { menuMap, foodIdMap, foodNameOptions } = useMenuData(memberId, reloadTick);
 
-  const mealFoodId = useMemo(() => {
-    const key = canon(mealFood);
+  const accidentFoodId = useMemo(() => {
+    const key = canon(accidentFood);
     if (!key) return null;
     return foodIdMap[key] ?? null;
-  }, [mealFood, foodIdMap]);
+  }, [accidentFood, foodIdMap]);
 
   const noEatFoodId = useMemo(() => {
     const key = canon(noEat);
@@ -108,7 +119,8 @@ export default function Page4() {
     return foodNameOptions;
   }, [foodNameOptions]);
 
-  const primaryActionLabel = activeTab === "cook" ? "食材登録" : "園児追加";
+  const primaryActionLabel =
+    activeTab === "cook" ? "食材登録" : activeTab === "hiyari" ? "ヒヤリハット報告" : "園児追加";
 
   const handleTabChange = (tab: RegisterTab) => {
     setActiveTab(tab);
@@ -143,11 +155,25 @@ export default function Page4() {
             cache: "no-store",
           }),
         ]);
-
         if (!answersRes.ok || !mealsRes.ok) throw new Error("fetch failed");
 
         const answersJson = await answersRes.json();
         const mealsJson = await mealsRes.json();
+        let nextAccidents: AccidentItem[] = [];
+        try {
+          const accidentsRes = await fetch(
+            `/api/accidents?member_id=${encodeURIComponent(memberId)}&limit=200`,
+            { cache: "no-store" }
+          );
+          if (accidentsRes.ok) {
+            const accidentsJson = await accidentsRes.json();
+            nextAccidents = (Array.isArray(accidentsJson)
+              ? accidentsJson
+              : accidentsJson.items ?? []) as AccidentItem[];
+          }
+        } catch {
+          nextAccidents = [];
+        }
 
         if (cancelled) return;
 
@@ -156,10 +182,12 @@ export default function Page4() {
 
         setAnswerItems(nextAnswers);
         setMealItems(nextMeals);
+        setAccidentItems(nextAccidents);
       } catch {
         if (!cancelled) {
           setAnswerItems([]);
           setMealItems([]);
+          setAccidentItems([]);
         }
       } finally {
         if (!cancelled) setListLoading(false);
@@ -176,17 +204,21 @@ export default function Page4() {
     const names = [
       ...answerItems.map((item) => item.child_name),
       ...mealItems.map((item) => item.child_name),
+      ...accidentItems.map((item) => item.child_name),
     ]
       .map((name) => name.trim())
       .filter(Boolean);
     return Array.from(new Set(names));
-  }, [answerItems, mealItems]);
+  }, [answerItems, mealItems, accidentItems]);
 
   const namesForTab = useMemo(() => {
     if (activeTab === "cook") {
       return cookFoodOptions.filter((name) =>
         name.toLowerCase().includes(searchText.trim().toLowerCase())
       );
+    }
+    if (activeTab === "hiyari") {
+      return [];
     }
 
     const latestMap = new Map<string, number>();
@@ -199,12 +231,7 @@ export default function Page4() {
 
     if (activeTab === "child") {
       for (const item of answerItems) addLatest(item.child_name, item.created_at);
-      for (const item of mealItems.filter((item) => item.record_type === "hiyari")) {
-        addLatest(item.child_name, item.created_at);
-      }
-    } else {
-      const targetType = "hiyari";
-      for (const item of mealItems.filter((item) => item.record_type === targetType)) {
+      for (const item of accidentItems) {
         addLatest(item.child_name, item.created_at);
       }
     }
@@ -213,7 +240,14 @@ export default function Page4() {
       .sort((a, b) => b[1] - a[1])
       .map(([name]) => name)
       .filter((name) => name.toLowerCase().includes(searchText.trim().toLowerCase()));
-  }, [activeTab, answerItems, mealItems, searchText, cookFoodOptions]);
+  }, [activeTab, answerItems, mealItems, accidentItems, searchText, cookFoodOptions]);
+
+  const filteredAccidents = useMemo(() => {
+    const q = searchText.trim().toLowerCase();
+    return accidentItems.filter((item) =>
+      q ? item.food_name.toLowerCase().includes(q) : true
+    );
+  }, [accidentItems, searchText]);
 
   useEffect(() => {
     if (namesForTab.length === 0) {
@@ -247,10 +281,11 @@ export default function Page4() {
     setNote("");
     setEditingAnswerId(null);
     setChildFormMode("register");
-    setMealChildName("");
-    setMealAgeMonth("");
-    setMealFood("");
-    setMealDetail("");
+    setAccidentChildName("");
+    setAccidentFood("");
+    setAccidentDetail("");
+    setAccidentPublic(false);
+    setEditingAccidentId(null);
     setCookFoodName("");
     setCookDrafts({
       phase1: "",
@@ -302,10 +337,17 @@ export default function Page4() {
       setNote("");
       setShowForm(false);
     } else {
-      setMealChildName(name);
-      setMealAgeMonth(month ? String(month) : "");
-      setMealFood(meal?.food_name ?? "");
-      setMealDetail(meal?.detail ?? "");
+      const target =
+        accidentItems.find((item) => item.child_name === name) ??
+        accidentItems.find((item) => item.food_name === name);
+      if (target) {
+        setEditingAccidentId(target.id);
+        setAccidentChildName(target.child_name);
+        setAccidentFood(target.food_name);
+        setAccidentDetail(target.accident_content);
+        setAccidentPublic(target.public === true);
+        setShowForm(true);
+      }
     }
 
     setFormMsg(null);
@@ -466,7 +508,7 @@ export default function Page4() {
         return;
       }
       if (noEatFoodId == null) {
-        setFormMsg("A_cookに登録されている食材を選択してください。");
+        setFormMsg("登録されている食材を選択してください。");
         return;
       }
 
@@ -513,34 +555,34 @@ export default function Page4() {
     setFormMsg(null);
   };
 
-  const handleMealSubmit = async (e: React.FormEvent) => {
+  const handleAccidentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormMsg(null);
 
-    if (!mealChildName || !mealAgeMonth || !mealFood || !mealDetail || !memberId) {
+    if (!accidentChildName || !accidentFood || !accidentDetail || !memberId) {
       setFormMsg("すべての必須項目を入力してください。");
       return;
     }
 
     setSubmitLoading(true);
     try {
-      const res = await fetch("/api/meal-records", {
-        method: "POST",
+      const res = await fetch("/api/accidents", {
+        method: editingAccidentId != null ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          child_name: mealChildName,
-          age_month: Number(mealAgeMonth),
-          record_type: activeTab === "cook" ? "growth" : "hiyari",
-          food_name: mealFood,
-          detail: mealDetail,
-          food_id: mealFoodId,
+          id: editingAccidentId,
+          child_name: accidentChildName,
+          food_name: accidentFood,
+          accident_content: accidentDetail,
+          public: accidentPublic,
+          food_id: accidentFoodId,
           member_id: memberId,
         }),
       });
 
       if (!res.ok) throw new Error("save failed");
 
-      setFormMsg("登録しました。");
+      setFormMsg(editingAccidentId != null ? "更新しました。" : "登録しました。");
       setReloadTick((prev) => prev + 1);
       resetForms();
       setShowForm(false);
@@ -595,10 +637,11 @@ export default function Page4() {
     const noEatItems = answerItems.filter(
       (item) => item.child_name === name && item.no_eat.trim().length > 0
     );
-    const hiyariItems = mealItems.filter(
-      (item) => item.child_name === name && item.record_type === "hiyari"
-    );
-    const month = noEatItems[0]?.age_month ?? hiyariItems[0]?.age_month ?? "-";
+    const hiyariItems = accidentItems.filter((item) => item.child_name === name);
+    const month =
+      noEatItems[0]?.age_month ??
+      answerItems.find((item) => item.child_name === name)?.age_month ??
+      "-";
 
     return (
       <div key={name} className="flex items-start gap-2">
@@ -786,7 +829,7 @@ export default function Page4() {
                   {hiyariItems.slice(0, 3).map((item) => (
                     <div key={item.id} className="rounded-md border border-[#E6D7C8] bg-[#F9F4E8] p-3">
                       <p className="text-base font-bold text-[#2f2a27]">{item.food_name}</p>
-                      {item.detail && <p className="text-sm text-[#2f2a27]">{item.detail}</p>}
+                      {item.accident_content && <p className="text-sm text-[#2f2a27]">{item.accident_content}</p>}
                     </div>
                   ))}
                 </div>
@@ -995,7 +1038,11 @@ export default function Page4() {
           <div className="mt-3 flex gap-1">
             <input
               type="text"
-              placeholder={activeTab === "cook" ? "食材名を入力してください" : "園児名を入力してください"}
+              placeholder={
+                activeTab === "cook" || activeTab === "hiyari"
+                  ? "食材名を入力してください"
+                  : "園児名を入力してください"
+              }
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               className="h-12 w-full rounded-sm border-[3px] border-[#b79074] bg-[#FFFDF8] px-3 text-base outline-none placeholder:text-[#b7aea6]"
@@ -1015,10 +1062,16 @@ export default function Page4() {
               resetForms();
               setChildFormMode("register");
               setFoodEditTargetName(null);
+              setEditingAccidentId(null);
               if (activeTab === "cook") {
                 const q = searchText.trim();
                 if (q) {
                   loadCookDraftFromName(q);
+                }
+              } else if (activeTab === "hiyari") {
+                const q = searchText.trim();
+                if (q) {
+                  setAccidentFood(q);
                 }
               }
               setShowForm((prev) => !prev);
@@ -1078,9 +1131,6 @@ export default function Page4() {
                 </form>
               ) : activeTab === "cook" ? (
                 <form onSubmit={handleCookSubmit} className="space-y-4">
-                  <div className="rounded-sm bg-[#B79074] py-2 text-center text-3xl font-bold text-white">
-                    食材登録
-                  </div>
                   <label className="block text-base font-medium text-[#2f2a27]">
                     食材名
                     <input
@@ -1142,49 +1192,47 @@ export default function Page4() {
                   </div>
                 </form>
               ) : (
-                <form onSubmit={handleMealSubmit} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <label className="text-base font-medium text-[#2f2a27]">
-                      園児名
-                      <input
-                        type="text"
-                        list="child-name-options"
-                        value={mealChildName}
-                        onChange={(e) => setMealChildName(e.target.value)}
-                        className="mt-1 h-11 w-full rounded border-[3px] border-[#7f7f7f] bg-transparent px-2"
-                      />
-                    </label>
-                    <label className="text-base font-medium text-[#2f2a27]">
-                      月齢
-                      <input
-                        type="number"
-                        min={0}
-                        value={mealAgeMonth}
-                        onChange={(e) => setMealAgeMonth(e.target.value)}
-                        className="mt-1 h-11 w-full rounded border-[3px] border-[#7f7f7f] bg-transparent px-2"
-                      />
-                    </label>
-                  </div>
+                <form onSubmit={handleAccidentSubmit} className="space-y-4">
+                  <label className="block text-base font-medium text-[#2f2a27]">
+                    園児名
+                    <input
+                      type="text"
+                      list="child-name-options"
+                      value={accidentChildName}
+                      onChange={(e) => setAccidentChildName(e.target.value)}
+                      className="mt-1 h-11 w-full rounded border-[3px] border-[#7f7f7f] bg-transparent px-2"
+                    />
+                  </label>
 
                   <label className="block text-base font-medium text-[#2f2a27]">
                     食材名 (選択)
                     <input
                       type="text"
                       list="a-cook-food-options"
-                      value={mealFood}
-                      onChange={(e) => setMealFood(e.target.value)}
+                      value={accidentFood}
+                      onChange={(e) => setAccidentFood(e.target.value)}
                       className="mt-1 h-11 w-full rounded border-[3px] border-[#7f7f7f] bg-transparent px-2"
                     />
                   </label>
 
                   <label className="block text-base font-medium text-[#2f2a27]">
-                    具体的な内容 (注意事項等)
+                    ヒヤリハット内容
                     <textarea
-                      value={mealDetail}
-                      onChange={(e) => setMealDetail(e.target.value)}
+                      value={accidentDetail}
+                      onChange={(e) => setAccidentDetail(e.target.value)}
                       rows={4}
                       className="mt-1 w-full rounded border-[3px] border-[#7f7f7f] bg-transparent p-2"
                     />
+                  </label>
+
+                  <label className="inline-flex items-center gap-2 text-sm text-[#2f2a27]">
+                    <input
+                      type="checkbox"
+                      checked={accidentPublic}
+                      onChange={(e) => setAccidentPublic(e.target.checked)}
+                      className="h-4 w-4"
+                    />
+                    公開する
                   </label>
 
                   <div className="grid grid-cols-2 gap-4 pt-2">
@@ -1203,7 +1251,7 @@ export default function Page4() {
                       disabled={submitLoading}
                       className="h-12 rounded bg-[#B79074] text-base font-bold text-white disabled:opacity-70"
                     >
-                      {submitLoading ? "送信中" : "登録"}
+                      {submitLoading ? "送信中" : editingAccidentId != null ? "更新" : "登録"}
                     </button>
                   </div>
                 </form>
@@ -1216,13 +1264,14 @@ export default function Page4() {
           <section className="mt-5 space-y-3">
             {listLoading && <p className="text-sm text-[#6b5a4e]">読み込み中...</p>}
 
-            {!listLoading && namesForTab.length === 0 && (
+            {!listLoading &&
+              (activeTab === "hiyari" ? filteredAccidents.length === 0 : namesForTab.length === 0) && (
               <p className="rounded-md bg-[#F3F3F3] p-4 text-sm text-[#6b5a4e]">
                 表示できるデータがありません。
               </p>
             )}
 
-            {!listLoading &&
+            {!listLoading && activeTab !== "hiyari" &&
               namesForTab.map((name) =>
                 activeTab === "child"
                   ? renderChildPanel(name)
@@ -1230,6 +1279,45 @@ export default function Page4() {
                     ? renderCookPanel(name)
                     : renderMealPanel(name, "hiyari")
               )}
+
+            {!listLoading && activeTab === "hiyari" && (
+              <div className="space-y-3">
+                {filteredAccidents.map((item) => (
+                  <div
+                    key={item.id}
+                    className={`rounded-md p-4 ${
+                      item.public ? "bg-[#F2E5C8]" : "bg-[#F7F7F7]"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-base font-bold text-[#2f2a27]">{item.food_name}</p>
+                        <p className="mt-1 text-sm text-[#2f2a27]">{item.accident_content}</p>
+                        <p className="mt-1 text-xs text-[#6b5a4e]">
+                          {item.child_name} / {formatDateTime(item.created_at)}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingAccidentId(item.id);
+                          setAccidentChildName(item.child_name);
+                          setAccidentFood(item.food_name);
+                          setAccidentDetail(item.accident_content);
+                          setAccidentPublic(item.public === true);
+                          setShowForm(true);
+                          setFormMsg(null);
+                        }}
+                        className="rounded p-1 text-[#2f2a27] hover:bg-[#e7ddd3]"
+                        aria-label={`${item.food_name}のヒヤリハットを編集`}
+                      >
+                        <Pencil size={18} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
         </div>
       </div>

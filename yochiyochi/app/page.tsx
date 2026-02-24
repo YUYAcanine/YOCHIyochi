@@ -51,7 +51,7 @@ export default function Page1() {
     Array<{
       id: number;
       food_name: string;
-      detail: string | null;
+      accident_content: string | null;
       created_at: string;
     }>
   >([]);
@@ -94,7 +94,7 @@ export default function Page1() {
       setNewsLoading(true);
       setNewsError(null);
       try {
-        const res = await fetch("/api/meal-records?type=hiyari&limit=3", {
+        const res = await fetch("/api/accidents?public=true&limit=3", {
           cache: "no-store",
         });
         if (!res.ok) throw new Error("fetch failed");
@@ -221,9 +221,9 @@ export default function Page1() {
                           </span>
                         )}
                       </div>
-                      {item.detail && (
+                      {item.accident_content && (
                         <p className="mt-1 text-sm leading-tight text-[#4d443e] sm:text-base">
-                          {item.detail}
+                          {item.accident_content}
                         </p>
                       )}
                       <div className="mt-1 text-xs text-[#675b52] sm:text-sm">

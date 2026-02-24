@@ -39,19 +39,30 @@ const readChildName = (row: EnjiRow): string =>
 const readAgeMonth = (row: EnjiRow): number =>
   Number(row.age ?? 0);
 
-const resolveFoodId = async (foodName: string): Promise<number | null> => {
+const resolveFoodId = async (gardenId: number, foodName: string): Promise<number | null> => {
   const trimmed = foodName.trim();
   if (!trimmed) return null;
 
-  const { data, error } = await supabase
+  const { data: aCook, error: aCookError } = await supabase
     .from("A_cook")
     .select("id")
     .eq("food_name", trimmed)
     .limit(1)
     .maybeSingle();
 
-  if (error || !data) return null;
-  return data.id;
+  if (!aCookError && aCook) return aCook.id;
+
+  const { data: bCook, error: bCookError } = await supabase
+    .from("B_cook")
+    .select("food_id")
+    .eq("garden_id", gardenId)
+    .eq("food_name", trimmed)
+    .not("food_id", "is", null)
+    .limit(1)
+    .maybeSingle();
+
+  if (bCookError || !bCook || typeof bCook.food_id !== "number") return null;
+  return bCook.food_id;
 };
 
 const upsertEnji = async (
@@ -124,10 +135,10 @@ export async function POST(req: Request) {
 
     const noEatText = typeof no_eat === "string" ? no_eat : "";
     const resolvedFoodId =
-      typeof food_id === "number" ? food_id : await resolveFoodId(noEatText);
+      typeof food_id === "number" ? food_id : await resolveFoodId(gardenId, noEatText);
     if (resolvedFoodId == null) {
       return NextResponse.json(
-        { error: "A_cookに登録されている食材を選択してください" },
+        { error: "登録済みの食材を選択してください" },
         { status: 400 }
       );
     }
@@ -181,10 +192,10 @@ export async function PUT(req: Request) {
 
     const noEatText = typeof no_eat === "string" ? no_eat : "";
     const resolvedFoodId =
-      typeof food_id === "number" ? food_id : await resolveFoodId(noEatText);
+      typeof food_id === "number" ? food_id : await resolveFoodId(gardenId, noEatText);
     if (resolvedFoodId == null) {
       return NextResponse.json(
-        { error: "A_cookに登録されている食材を選択してください" },
+        { error: "登録済みの食材を選択してください" },
         { status: 400 }
       );
     }
@@ -264,17 +275,30 @@ export async function GET(req: Request) {
 
     let foodNameMap = new Map<number, string>();
     if (foodIds.length > 0) {
-      const { data: cookData } = await supabase
-        .from("A_cook")
-        .select("id, food_name")
-        .in("id", foodIds);
+      const [{ data: aCookData }, { data: bCookData }] = await Promise.all([
+        supabase.from("A_cook").select("id, food_name").in("id", foodIds),
+        supabase
+          .from("B_cook")
+          .select("food_id, food_name")
+          .eq("garden_id", gardenId)
+          .in("food_id", foodIds),
+      ]);
 
-      const cooks = (cookData ?? []) as unknown as CookRow[];
-      foodNameMap = new Map(
-        cooks
-          .filter((row) => typeof row.food_name === "string")
-          .map((row) => [row.id, row.food_name as string])
-      );
+      const cooks = (aCookData ?? []) as unknown as CookRow[];
+      for (const row of cooks) {
+        if (typeof row.food_name === "string") {
+          foodNameMap.set(row.id, row.food_name);
+        }
+      }
+
+      const bCooks = (bCookData ?? []) as Array<{ food_id: number | null; food_name: string | null }>;
+      for (const row of bCooks) {
+        if (typeof row.food_id === "number" && typeof row.food_name === "string") {
+          if (!foodNameMap.has(row.food_id)) {
+            foodNameMap.set(row.food_id, row.food_name);
+          }
+        }
+      }
     }
 
     const items = foodRows.map((row) => {

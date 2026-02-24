@@ -27,6 +27,30 @@ const toGardenId = (memberId: string): number | null => {
   return value;
 };
 
+const nextAvailableFoodId = async (): Promise<number | null> => {
+  const [{ data: maxACook, error: aError }, { data: maxBCook, error: bError }] =
+    await Promise.all([
+      supabase.from("A_cook").select("id").order("id", { ascending: false }).limit(1).maybeSingle(),
+      supabase
+        .from("B_cook")
+        .select("food_id")
+        .not("food_id", "is", null)
+        .order("food_id", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+
+  if (aError || bError) {
+    console.error(aError ?? bError);
+    return null;
+  }
+
+  const maxA = Number(maxACook?.id);
+  const maxB = Number(maxBCook?.food_id);
+  const base = Math.max(Number.isFinite(maxA) ? maxA : 0, Number.isFinite(maxB) ? maxB : 0);
+  return base + 1;
+};
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as Payload;
@@ -65,13 +89,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "保存に失敗しました" }, { status: 500 });
     }
     const foodId = Number(food?.id);
-    const resolvedFoodId = Number.isFinite(foodId) ? foodId : null;
+    let resolvedFoodId = Number.isFinite(foodId) ? foodId : null;
 
     let existingId: number | null = null;
+    let existingFoodId: number | null = null;
     if (resolvedFoodId != null) {
       const { data: existingByFoodId, error: existingByFoodIdError } = await supabase
         .from("B_cook")
-        .select("id")
+        .select("id, food_id")
         .eq("garden_id", gardenId)
         .eq("food_id", resolvedFoodId)
         .limit(1)
@@ -82,12 +107,15 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "保存に失敗しました" }, { status: 500 });
       }
       existingId = typeof existingByFoodId?.id === "number" ? existingByFoodId.id : null;
-    } else {
+      existingFoodId =
+        typeof existingByFoodId?.food_id === "number" ? existingByFoodId.food_id : null;
+    }
+
+    if (existingId == null) {
       const { data: existingByName, error: existingByNameError } = await supabase
         .from("B_cook")
-        .select("id")
+        .select("id, food_id")
         .eq("garden_id", gardenId)
-        .is("food_id", null)
         .eq("food_name", foodName)
         .limit(1)
         .maybeSingle();
@@ -97,6 +125,19 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "保存に失敗しました" }, { status: 500 });
       }
       existingId = typeof existingByName?.id === "number" ? existingByName.id : null;
+      existingFoodId = typeof existingByName?.food_id === "number" ? existingByName.food_id : null;
+    }
+
+    if (resolvedFoodId == null) {
+      if (existingFoodId != null) {
+        resolvedFoodId = existingFoodId;
+      } else {
+        resolvedFoodId = await nextAvailableFoodId();
+      }
+    }
+
+    if (resolvedFoodId == null) {
+      return NextResponse.json({ error: "food_id の採番に失敗しました" }, { status: 500 });
     }
 
     if (existingId != null) {
@@ -114,23 +155,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, id: existingId });
     }
 
-    const { data: inserted, error: insertError } = await supabase
+    const { error: insertError } = await supabase
       .from("B_cook")
       .insert({
         garden_id: gardenId,
         food_id: resolvedFoodId,
         food_name: foodName,
         ...updateValues,
-      })
-      .select("id")
-      .maybeSingle();
+      });
 
     if (insertError) {
       console.error(insertError);
       return NextResponse.json({ error: "保存に失敗しました" }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, id: inserted?.id ?? null });
+    return NextResponse.json({ ok: true, id: null });
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: "保存に失敗しました" }, { status: 500 });
