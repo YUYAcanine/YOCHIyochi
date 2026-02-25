@@ -1,10 +1,4 @@
-/**
- * useMenuData
- *
- * 食材名をキーとして、成長フェーズ別の注意情報を取得・整形するカスタムフック。
- **/
-
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
@@ -18,153 +12,124 @@ export type MenuInfo = {
   phase5?: string;
 };
 
-type FoodRow = {
-  food_id: number;
+type ACookRow = {
+  id: number | string;
   food_name: string | null;
-  cook_id: number | null;
+  phase1: string | null;
+  phase2: string | null;
+  phase3: string | null;
+  phase4: string | null;
+  phase5: string | null;
 };
 
-type CookRow = {
-  cook_id: number;
-  description_phase1: string | null;
-  description_phase2: string | null;
-  description_phase3: string | null;
-  description_phase4: string | null;
-  description_phase5: string | null;
-};
-
-type FallbackRow = {
+type BCookRow = {
+  food_id: number | string | null;
   food_name: string | null;
-  description_phase1: string | null;
-  description_phase2: string | null;
-  description_phase3: string | null;
-  description_phase4: string | null;
-  description_phase5: string | null;
+  phase1: string | null;
+  phase2: string | null;
+  phase3: string | null;
+  phase4: string | null;
+  phase5: string | null;
 };
 
-type OverrideRow = {
-  food_id: number;
-  phase: string;
-  description: string | null;
+const toGardenId = (memberId: string): string | null => {
+  const digits = memberId.replace(/\D/g, "");
+  if (!digits) return null;
+  return digits;
 };
 
-export function useMenuData(memberId?: string | null) {
+export function useMenuData(memberId?: string | null, reloadTick?: number) {
   const [menuMap, setMenuMap] = useState<Record<string, MenuInfo>>({});
   const [foodIdMap, setFoodIdMap] = useState<Record<string, number>>({});
   const [cookIdMap, setCookIdMap] = useState<Record<string, number>>({});
+  const [foodNameOptions, setFoodNameOptions] = useState<string[]>([]);
+  const [eventTick, setEventTick] = useState(0);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onCookUpdated = () => setEventTick((prev) => prev + 1);
+    window.addEventListener("yochi-cook-updated", onCookUpdated);
+    return () => window.removeEventListener("yochi-cook-updated", onCookUpdated);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
 
     async function fetchMenuData() {
       try {
-        // 1) foodlist
-        const { data: foodData, error: foodError } = await supabase
-          .from("yochiyochi_foodlist")
-          .select("food_id, food_name, cook_id");
+        const { data, error } = await supabase
+          .from("A_cook")
+          .select("id, food_name, phase1, phase2, phase3, phase4, phase5");
 
-        // Supabase型が未生成でも any にしないために unknown で受けて詰め替え
-        const foods = (foodData ?? []) as unknown as FoodRow[];
+        if (error || !data || cancelled) return;
 
-        // foodlist が取れない場合はフォールバック
-        if (foodError) {
-          const { data: fallbackData, error: fallbackError } = await supabase
-            .from("NagasakiDemoData")
-            .select(
-              "food_name, description_phase1, description_phase2, description_phase3, description_phase4, description_phase5"
-            );
-
-          if (fallbackError || !fallbackData || cancelled) return;
-
-          const rows = fallbackData as unknown as FallbackRow[];
-          const map: Record<string, MenuInfo> = {};
-
-          for (const row of rows) {
-            const key = canon(row.food_name ?? "");
-            if (!key) continue;
-
-            map[key] = {
-              phase1: row.description_phase1?.trim() ?? undefined,
-              phase2: row.description_phase2?.trim() ?? undefined,
-              phase3: row.description_phase3?.trim() ?? undefined,
-              phase4: row.description_phase4?.trim() ?? undefined,
-              phase5: row.description_phase5?.trim() ?? undefined,
-            };
-          }
-
-          if (cancelled) return;
-          setMenuMap(map);
-          setFoodIdMap({});
-          setCookIdMap({});
-          return;
-        }
-
-        if (!foods.length || cancelled) return;
-
-        // 2) cooklist
-        const { data: cookData, error: cookError } = await supabase
-          .from("yochiyochi_cooklist")
-          .select(
-            "cook_id, description_phase1, description_phase2, description_phase3, description_phase4, description_phase5"
-          );
-
-        if (cookError || !cookData || cancelled) return;
-
-        const cooks = cookData as unknown as CookRow[];
-
-        // cook_id -> cookInfo
-        const cookMap = new Map<number, CookRow>();
-        for (const cook of cooks) {
-          cookMap.set(cook.cook_id, cook);
-        }
-
-        // 3) 結合
+        const rows = data as unknown as ACookRow[];
         const map: Record<string, MenuInfo> = {};
         const idMap: Record<string, number> = {};
-        const cookMapByFood: Record<string, number> = {};
-        const idToKey = new Map<number, string>();
+        const idToKey = new Map<string, string>();
+        const nameSet = new Set<string>();
 
-        for (const food of foods) {
-          const key = canon(food.food_name ?? "");
-          if (!key) continue;
-
-          idMap[key] = food.food_id;
-          idToKey.set(food.food_id, key);
-          if (food.cook_id != null) {
-            cookMapByFood[key] = food.cook_id;
+        for (const row of rows) {
+          const displayName = (row.food_name ?? "").trim();
+          if (displayName) {
+            nameSet.add(displayName);
           }
 
-          if (food.cook_id == null) continue;
-          const cookInfo = cookMap.get(food.cook_id);
-          if (!cookInfo) continue;
+          const key = canon(row.food_name ?? "");
+          if (!key) continue;
 
+          const numericId = Number(row.id);
+          if (!Number.isFinite(numericId)) continue;
+          idMap[key] = numericId;
+          idToKey.set(String(row.id), key);
           map[key] = {
-            phase1: cookInfo.description_phase1?.trim() ?? undefined,
-            phase2: cookInfo.description_phase2?.trim() ?? undefined,
-            phase3: cookInfo.description_phase3?.trim() ?? undefined,
-            phase4: cookInfo.description_phase4?.trim() ?? undefined,
-            phase5: cookInfo.description_phase5?.trim() ?? undefined,
+            phase1: row.phase1?.trim() ?? undefined,
+            phase2: row.phase2?.trim() ?? undefined,
+            phase3: row.phase3?.trim() ?? undefined,
+            phase4: row.phase4?.trim() ?? undefined,
+            phase5: row.phase5?.trim() ?? undefined,
           };
         }
 
-        // 4) 会員ごとの上書き
         if (memberId) {
-          const { data: overrideData, error: overrideError } = await supabase
-            .from("yochiyochi_cook_overrides")
-            .select("food_id, phase, description")
-            .eq("member_id", memberId);
+          const gardenId = toGardenId(memberId);
+          if (gardenId != null) {
+            const { data: bCookData, error: bCookError } = await supabase
+              .from("B_cook")
+              .select("food_id, food_name, phase1, phase2, phase3, phase4, phase5")
+              .eq("garden_id", gardenId);
 
-          if (!overrideError && overrideData) {
-            const overrides = overrideData as unknown as OverrideRow[];
-            for (const row of overrides) {
-              const key = idToKey.get(row.food_id);
-              if (!key) continue;
-              const phaseKey = row.phase as keyof MenuInfo;
-              if (!phaseKey) continue;
-              map[key] = {
-                ...map[key],
-                [phaseKey]: row.description?.trim() ?? undefined,
-              };
+            if (!bCookError && bCookData) {
+              const overrides = bCookData as unknown as BCookRow[];
+              for (const row of overrides) {
+                const numericFoodId = Number(row.food_id);
+                const hasFoodId = Number.isFinite(numericFoodId);
+                const keyFromFoodId = hasFoodId ? idToKey.get(String(numericFoodId)) : undefined;
+                const keyFromName = canon(row.food_name ?? "");
+                const key = keyFromFoodId ?? (keyFromName || undefined);
+                if (!key) continue;
+
+                const displayName = (row.food_name ?? "").trim();
+                if (displayName) {
+                  nameSet.add(displayName);
+                }
+
+                if (hasFoodId) {
+                  idToKey.set(String(numericFoodId), key);
+                  if (!(key in idMap)) {
+                    idMap[key] = numericFoodId;
+                  }
+                }
+
+                map[key] = {
+                  ...map[key],
+                  phase1: row.phase1?.trim() ?? map[key]?.phase1,
+                  phase2: row.phase2?.trim() ?? map[key]?.phase2,
+                  phase3: row.phase3?.trim() ?? map[key]?.phase3,
+                  phase4: row.phase4?.trim() ?? map[key]?.phase4,
+                  phase5: row.phase5?.trim() ?? map[key]?.phase5,
+                };
+              }
             }
           }
         }
@@ -172,7 +137,10 @@ export function useMenuData(memberId?: string | null) {
         if (cancelled) return;
         setMenuMap(map);
         setFoodIdMap(idMap);
-        setCookIdMap(cookMapByFood);
+        setCookIdMap({});
+        setFoodNameOptions(
+          Array.from(nameSet).sort((a, b) => a.localeCompare(b, "ja"))
+        );
       } catch (e) {
         console.error("useMenuData error:", e);
       }
@@ -182,9 +150,13 @@ export function useMenuData(memberId?: string | null) {
     return () => {
       cancelled = true;
     };
-  }, [memberId]);
+  }, [memberId, reloadTick, eventTick]);
 
-  const updateMenuForKey = (key: string, phaseKey: keyof MenuInfo, value: string | null) => {
+  const updateMenuForKey = (
+    key: string,
+    phaseKey: keyof MenuInfo,
+    value: string | null
+  ) => {
     setMenuMap((prev) => {
       const current = prev[key] ?? {};
       return {
@@ -197,5 +169,5 @@ export function useMenuData(memberId?: string | null) {
     });
   };
 
-  return { menuMap, foodIdMap, cookIdMap, updateMenuForKey };
+  return { menuMap, foodIdMap, cookIdMap, foodNameOptions, updateMenuForKey };
 }

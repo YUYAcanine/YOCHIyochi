@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -10,6 +10,7 @@ type Answer = {
   child_name: string;
   age_month: number;
   no_eat: string;
+  can_eat?: boolean | null;
   note: string | null;
   created_at: string;
 };
@@ -60,7 +61,7 @@ export default function Page5() {
         setAuthChecked(true);
 
         const [answersRes, mealsRes] = await Promise.all([
-          fetch(`/api/answers?member_id=${encodeURIComponent(storedMemberId)}`, {
+          fetch(`/api/enji-info?member_id=${encodeURIComponent(storedMemberId)}`, {
             cache: "no-store",
           }),
           fetch(`/api/meal-records?member_id=${encodeURIComponent(storedMemberId)}&limit=200`, {
@@ -95,7 +96,9 @@ export default function Page5() {
 
     for (const item of answers) {
       const child = ensureChild(item.child_name);
-      child.noEat.push(item);
+      if (item.no_eat.trim().length > 0 && item.can_eat !== true) {
+        child.noEat.push(item);
+      }
       if (Number.isFinite(item.age_month)) child.ages.push(item.age_month);
     }
 
@@ -278,3 +281,4 @@ export default function Page5() {
     </main>
   );
 }
+
