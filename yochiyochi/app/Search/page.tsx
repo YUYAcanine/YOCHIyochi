@@ -21,6 +21,7 @@ type FoodItem = MenuInfo & {
 export default function SearchPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<FoodItem[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null);
   const [phase, setPhase] = useState<PhaseKey>("phase1");
   const [isClient, setIsClient] = useState(false);
@@ -68,6 +69,7 @@ export default function SearchPage() {
 
     setSearchResults(results);
     setHasSearched(true);
+    setShowSuggestions(false);
   };
 
   const handleSelectFood = (food: FoodItem) => {
@@ -136,13 +138,16 @@ export default function SearchPage() {
           <div className="mb-8 mt-6">
             <div className="flex gap-2">
               <div className="flex-1 relative">
-                <input
-                  type="text"
-                  value={isClient ? searchQuery : ""}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    if (hasSearched) setHasSearched(false);
-                  }}
+	                <input
+	                  type="text"
+	                  value={isClient ? searchQuery : ""}
+	                  onFocus={() => setShowSuggestions(true)}
+	                  onBlur={() => setTimeout(() => setShowSuggestions(false), 80)}
+	                  onChange={(e) => {
+	                    setSearchQuery(e.target.value);
+	                    setShowSuggestions(true);
+	                    if (hasSearched) setHasSearched(false);
+	                  }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.nativeEvent.isComposing) {
                       handleSearch();
@@ -155,14 +160,17 @@ export default function SearchPage() {
                 {searchQuery && (
                   <button
                     type="button"
-                    onClick={() => setSearchQuery("")}
+                    onClick={() => {
+                      setSearchQuery("");
+                      setShowSuggestions(false);
+                    }}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9CA3AF] hover:text-[#6B7280]"
                     aria-label="入力をクリア"
                   >
                     <X className="w-5 h-5" />
                   </button>
                 )}
-                {isClient && searchQuery.trim().length > 0 && liveSuggestions.length > 0 && (
+                {isClient && showSuggestions && searchQuery.trim().length > 0 && liveSuggestions.length > 0 && (
                   <div className="absolute left-0 right-0 top-[calc(100%+0.4rem)] z-20 max-h-64 overflow-y-auto rounded-xl border border-[#D3C5B9] bg-white shadow-lg">
                     {liveSuggestions.map((food) => (
                       <button
@@ -173,6 +181,7 @@ export default function SearchPage() {
                           setSearchQuery(food.food_name);
                           setSearchResults(buildMatchedFoods(food.food_name));
                           setHasSearched(true);
+                          setShowSuggestions(false);
                         }}
                         className="block w-full border-b border-[#F0E4D8] px-4 py-3 text-left text-sm text-[#4D3F36] hover:bg-[#F8E8E8] last:border-b-0"
                       >
