@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronUp, Pencil, Search, X } from "lucide-react";
 import { useMenuData } from "@/hooks/useMenuData";
@@ -46,6 +46,17 @@ type AccidentItem = {
   created_at: string;
 };
 
+type SuggestionInputProps = {
+  value: string;
+  onChangeValue: (value: string) => void;
+  options: string[];
+  className: string;
+  wrapperClassName?: string;
+  placeholder?: string;
+  type?: "text" | "number";
+  min?: number;
+};
+
 const formatDateTime = (value: string) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
@@ -56,6 +67,74 @@ const formatDateTime = (value: string) => {
   const mi = String(date.getMinutes()).padStart(2, "0");
   return `${yyyy}/${mm}/${dd} ${hh}:${mi}`;
 };
+
+function SuggestionInput({
+  value,
+  onChangeValue,
+  options,
+  className,
+  wrapperClassName,
+  placeholder,
+  type = "text",
+  min,
+}: SuggestionInputProps) {
+  const [open, setOpen] = useState(false);
+
+  const suggestions = useMemo(() => {
+    if (type !== "text") return [];
+    const q = canon(value.trim());
+    if (!q) return [];
+
+    const unique = Array.from(
+      new Set(
+        options
+          .map((item) => item.trim())
+          .filter(Boolean)
+      )
+    );
+
+    return unique
+      .filter((item) => {
+        const c = canon(item);
+        return c.includes(q) || q.includes(c);
+      })
+      .slice(0, 8);
+  }, [value, options, type]);
+
+  return (
+    <div className={`relative ${wrapperClassName ?? ""}`}>
+      <input
+        type={type}
+        min={min}
+        value={value}
+        autoComplete="off"
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 80)}
+        onChange={(e) => onChangeValue(e.target.value)}
+        placeholder={placeholder}
+        className={className}
+      />
+      {type === "text" && open && value.trim() && suggestions.length > 0 && (
+        <div className="absolute left-0 right-0 top-[calc(100%+0.3rem)] z-20 max-h-56 overflow-y-auto rounded-lg border border-[#D3C5B9] bg-white shadow-lg">
+          {suggestions.map((item) => (
+            <button
+              key={item}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                onChangeValue(item);
+                setOpen(false);
+              }}
+              className="block w-full border-b border-[#F0E4D8] px-3 py-2 text-left text-sm text-[#2f2a27] hover:bg-[#F8E8E8] last:border-b-0"
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Page4() {
   const router = useRouter();
@@ -95,8 +174,6 @@ export default function Page4() {
   const [searchText, setSearchText] = useState("");
   const [expandedNames, setExpandedNames] = useState<Record<string, boolean>>({});
   const [cookEditTargetName, setCookEditTargetName] = useState<string | null>(null);
-  const topFormRef = useRef<HTMLDivElement | null>(null);
-  const inlineFoodFormRefs = useRef<Record<string, HTMLFormElement | null>>({});
 
   const [answerItems, setAnswerItems] = useState<AnswerItem[]>([]);
   const [mealItems, setMealItems] = useState<MealItem[]>([]);
@@ -252,6 +329,11 @@ export default function Page4() {
     );
   }, [accidentItems, searchText]);
 
+  const searchBoxOptions = useMemo(() => {
+    if (activeTab === "cook" || activeTab === "hiyari") return cookFoodOptions;
+    return childOptions;
+  }, [activeTab, cookFoodOptions, childOptions]);
+
   useEffect(() => {
     if (namesForTab.length === 0) {
       setExpandedNames({});
@@ -270,25 +352,6 @@ export default function Page4() {
   useEffect(() => {
     setSearchText("");
   }, [activeTab]);
-
-  const scrollToNode = (node: HTMLElement | null) => {
-    if (!node) return;
-    node.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-
-  useEffect(() => {
-    if (!showForm) return;
-    requestAnimationFrame(() => {
-      scrollToNode(topFormRef.current);
-    });
-  }, [showForm, activeTab, editingAccidentId, cookFoodName]);
-
-  useEffect(() => {
-    if (!foodEditTargetName) return;
-    requestAnimationFrame(() => {
-      scrollToNode(inlineFoodFormRefs.current[foodEditTargetName] ?? null);
-    });
-  }, [foodEditTargetName, expandedNames]);
 
   if (!authChecked) return null;
 
@@ -763,6 +826,12 @@ export default function Page4() {
     }
   };
 
+  const preventImeEnterSubmit = (e: React.KeyboardEvent<HTMLFormElement>) => {
+    if (e.key === "Enter" && e.nativeEvent.isComposing) {
+      e.preventDefault();
+    }
+  };
+
   const renderChildPanel = (name: string) => {
     const noEatItems = answerItems.filter(
       (item) => item.child_name === name && item.no_eat.trim().length > 0
@@ -878,22 +947,20 @@ export default function Page4() {
 
             {foodEditTargetName === name && (
               <form
-                ref={(node) => {
-                  inlineFoodFormRefs.current[name] = node;
-                }}
                 onSubmit={handleInlineFoodSubmit}
+                onKeyDownCapture={preventImeEnterSubmit}
                 className="space-y-4 rounded-md bg-white p-4"
               >
-                <div className="grid grid-cols-2 gap-4">
-                  <label className="text-base font-medium text-[#2f2a27]">
-                    園児名
-                    <input
-                      type="text"
-                      value={childName}
-                      onChange={(e) => setChildName(e.target.value)}
-                      className="mt-1 h-11 w-full rounded border-[3px] border-[#7f7f7f] bg-transparent px-2"
-                    />
-                  </label>
+	                <div className="grid grid-cols-2 gap-4">
+	                  <label className="text-base font-medium text-[#2f2a27]">
+	                    園児名
+	                    <SuggestionInput
+	                      value={childName}
+	                      onChangeValue={setChildName}
+	                      options={childOptions}
+	                      className="mt-1 h-11 w-full rounded border-[3px] border-[#7f7f7f] bg-transparent px-2"
+	                    />
+	                  </label>
                   <label className="text-base font-medium text-[#2f2a27]">
                     月齢
                     <input
@@ -907,16 +974,15 @@ export default function Page4() {
                 </div>
 
                 <div className="grid grid-cols-2 items-end gap-4">
-                  <label className="text-base font-medium text-[#2f2a27]">
-                    食材名 (選択)
-                    <input
-                      type="text"
-                      list="a-cook-food-options"
-                      value={noEat}
-                      onChange={(e) => setNoEat(e.target.value)}
-                      className="mt-1 h-11 w-full rounded border-[3px] border-[#7f7f7f] bg-transparent px-2"
-                    />
-                  </label>
+	                  <label className="text-base font-medium text-[#2f2a27]">
+	                    食材名 (選択)
+	                    <SuggestionInput
+	                      value={noEat}
+	                      onChangeValue={setNoEat}
+	                      options={cookFoodOptions}
+	                      className="mt-1 h-11 w-full rounded border-[3px] border-[#7f7f7f] bg-transparent px-2"
+	                    />
+	                  </label>
                   <label className="inline-flex h-11 items-center justify-center gap-2 text-lg font-medium text-[#2f2a27]">
                     <input
                       type="checkbox"
@@ -1110,7 +1176,7 @@ export default function Page4() {
         {expandedNames[foodName] && (
           <div className="mt-4 space-y-3">
             {cookEditTargetName === foodName ? (
-              <form onSubmit={handleInlineCookSubmit} className="space-y-3">
+              <form onSubmit={handleInlineCookSubmit} onKeyDownCapture={preventImeEnterSubmit} className="space-y-3">
                 {[
                   { key: "phase1", label: "離乳初期" },
                   { key: "phase2", label: "離乳中期" },
@@ -1214,18 +1280,19 @@ export default function Page4() {
             </button>
           </div>
 
-          <div className="mt-3 flex gap-1">
-            <input
-              type="text"
-              placeholder={
-                activeTab === "cook" || activeTab === "hiyari"
-                  ? "食材名を入力してください"
-                  : "園児名を入力してください"
-              }
-              value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
-              className="h-12 w-full rounded-sm border-[3px] border-[#b79074] bg-[#FFFDF8] px-3 text-base outline-none placeholder:text-[#b7aea6]"
-            />
+	          <div className="mt-3 flex gap-1">
+	            <SuggestionInput
+	              value={searchText}
+	              onChangeValue={setSearchText}
+	              options={searchBoxOptions}
+	              wrapperClassName="flex-1"
+	              placeholder={
+	                activeTab === "cook" || activeTab === "hiyari"
+	                  ? "食材名を入力してください"
+	                  : "園児名を入力してください"
+	              }
+	              className="h-12 w-full rounded-sm border-[3px] border-[#b79074] bg-[#FFFDF8] px-3 text-base outline-none placeholder:text-[#b7aea6]"
+	            />
             <button
               type="button"
               className="flex h-12 w-12 items-center justify-center rounded-sm bg-[#B79074] text-white"
@@ -1262,23 +1329,19 @@ export default function Page4() {
           </button>
 
           {showForm && (
-            <div
-              ref={topFormRef}
-              className="rounded-b-md border-x-[3px] border-b-[3px] border-[#b79074] bg-white p-4"
-            >
+            <div className="rounded-b-md border-x-[3px] border-b-[3px] border-[#b79074] bg-white p-4">
               {activeTab === "child" ? (
-                <form onSubmit={handleChildSubmit} className="space-y-4">
+                <form onSubmit={handleChildSubmit} onKeyDownCapture={preventImeEnterSubmit} className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
-                    <label className="text-base font-medium text-[#2f2a27]">
-                      園児名
-                      <input
-                        type="text"
-                        list="child-name-options"
-                        value={childName}
-                        onChange={(e) => setChildName(e.target.value)}
-                        className="mt-1 h-11 w-full rounded border-[3px] border-[#7f7f7f] bg-transparent px-2"
-                      />
-                    </label>
+	                    <label className="text-base font-medium text-[#2f2a27]">
+	                      園児名
+	                      <SuggestionInput
+	                        value={childName}
+	                        onChangeValue={setChildName}
+	                        options={childOptions}
+	                        className="mt-1 h-11 w-full rounded border-[3px] border-[#7f7f7f] bg-transparent px-2"
+	                      />
+	                    </label>
                     <label className="text-base font-medium text-[#2f2a27]">
                       月齢
                       <input
@@ -1312,17 +1375,16 @@ export default function Page4() {
                   </div>
                 </form>
               ) : activeTab === "cook" ? (
-                <form onSubmit={handleCookSubmit} className="space-y-4">
-                  <label className="block text-base font-medium text-[#2f2a27]">
-                    食材名
-                    <input
-                      type="text"
-                      list="a-cook-food-options"
-                      value={cookFoodName}
-                      onChange={(e) => setCookFoodName(e.target.value)}
-                      className="mt-1 h-11 w-full rounded border-[3px] border-[#7f7f7f] bg-transparent px-2"
-                    />
-                  </label>
+                <form onSubmit={handleCookSubmit} onKeyDownCapture={preventImeEnterSubmit} className="space-y-4">
+	                  <label className="block text-base font-medium text-[#2f2a27]">
+	                    食材名
+	                    <SuggestionInput
+	                      value={cookFoodName}
+	                      onChangeValue={setCookFoodName}
+	                      options={cookFoodOptions}
+	                      className="mt-1 h-11 w-full rounded border-[3px] border-[#7f7f7f] bg-transparent px-2"
+	                    />
+	                  </label>
 
                   <div className="space-y-2">
                     <p className="text-base font-medium text-[#2f2a27]">調理方法</p>
@@ -1374,28 +1436,26 @@ export default function Page4() {
                   </div>
                 </form>
               ) : (
-                <form onSubmit={handleAccidentSubmit} className="space-y-4">
-                  <label className="block text-base font-medium text-[#2f2a27]">
-                    園児名
-                    <input
-                      type="text"
-                      list="child-name-options"
-                      value={accidentChildName}
-                      onChange={(e) => setAccidentChildName(e.target.value)}
-                      className="mt-1 h-11 w-full rounded border-[3px] border-[#7f7f7f] bg-transparent px-2"
-                    />
-                  </label>
+                <form onSubmit={handleAccidentSubmit} onKeyDownCapture={preventImeEnterSubmit} className="space-y-4">
+	                  <label className="block text-base font-medium text-[#2f2a27]">
+	                    園児名
+	                    <SuggestionInput
+	                      value={accidentChildName}
+	                      onChangeValue={setAccidentChildName}
+	                      options={childOptions}
+	                      className="mt-1 h-11 w-full rounded border-[3px] border-[#7f7f7f] bg-transparent px-2"
+	                    />
+	                  </label>
 
-                  <label className="block text-base font-medium text-[#2f2a27]">
-                    食材名 (選択)
-                    <input
-                      type="text"
-                      list="a-cook-food-options"
-                      value={accidentFood}
-                      onChange={(e) => setAccidentFood(e.target.value)}
-                      className="mt-1 h-11 w-full rounded border-[3px] border-[#7f7f7f] bg-transparent px-2"
-                    />
-                  </label>
+	                  <label className="block text-base font-medium text-[#2f2a27]">
+	                    食材名 (選択)
+	                    <SuggestionInput
+	                      value={accidentFood}
+	                      onChangeValue={setAccidentFood}
+	                      options={cookFoodOptions}
+	                      className="mt-1 h-11 w-full rounded border-[3px] border-[#7f7f7f] bg-transparent px-2"
+	                    />
+	                  </label>
 
                   <label className="block text-base font-medium text-[#2f2a27]">
                     ヒヤリハット内容
@@ -1474,27 +1534,25 @@ export default function Page4() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="w-full">
                         {editingAccidentId === item.id ? (
-                          <form onSubmit={handleInlineAccidentSubmit} className="space-y-3">
-                            <label className="block text-sm font-medium text-[#2f2a27]">
-                              園児名
-                              <input
-                                type="text"
-                                list="child-name-options"
-                                value={accidentChildName}
-                                onChange={(e) => setAccidentChildName(e.target.value)}
-                                className="mt-1 h-10 w-full rounded border-[2px] border-[#7f7f7f] bg-white px-2"
-                              />
-                            </label>
-                            <label className="block text-sm font-medium text-[#2f2a27]">
-                              食材名
-                              <input
-                                type="text"
-                                list="a-cook-food-options"
-                                value={accidentFood}
-                                onChange={(e) => setAccidentFood(e.target.value)}
-                                className="mt-1 h-10 w-full rounded border-[2px] border-[#7f7f7f] bg-white px-2"
-                              />
-                            </label>
+                          <form onSubmit={handleInlineAccidentSubmit} onKeyDownCapture={preventImeEnterSubmit} className="space-y-3">
+	                            <label className="block text-sm font-medium text-[#2f2a27]">
+	                              園児名
+	                              <SuggestionInput
+	                                value={accidentChildName}
+	                                onChangeValue={setAccidentChildName}
+	                                options={childOptions}
+	                                className="mt-1 h-10 w-full rounded border-[2px] border-[#7f7f7f] bg-white px-2"
+	                              />
+	                            </label>
+	                            <label className="block text-sm font-medium text-[#2f2a27]">
+	                              食材名
+	                              <SuggestionInput
+	                                value={accidentFood}
+	                                onChangeValue={setAccidentFood}
+	                                options={cookFoodOptions}
+	                                className="mt-1 h-10 w-full rounded border-[2px] border-[#7f7f7f] bg-white px-2"
+	                              />
+	                            </label>
                             <label className="block text-sm font-medium text-[#2f2a27]">
                               ヒヤリハット内容
                               <textarea
@@ -1557,19 +1615,9 @@ export default function Page4() {
         </div>
       </div>
 
-      <datalist id="child-name-options">
-        {childOptions.map((name) => (
-          <option key={name} value={name} />
-        ))}
-      </datalist>
-      <datalist id="a-cook-food-options">
-        {cookFoodOptions.map((foodName) => (
-          <option key={foodName} value={foodName} />
-        ))}
-      </datalist>
-    </main>
-  );
-}
+	    </main>
+	  );
+	}
 
 
 

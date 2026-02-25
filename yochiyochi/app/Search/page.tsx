@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search, X } from "lucide-react";
 import { canon } from "@/lib/textNormalize";
 import Ribbon from "@/components/Ribbon";
@@ -30,6 +30,27 @@ export default function SearchPage() {
   const { menuMap, foodIdMap } = useMenuData(memberId);
   const { accidentInfo, showAccidentInfo, fetchByFoodId, reset } = useAccidentInfo();
 
+  const buildMatchedFoods = (rawQuery: string, limit?: number): FoodItem[] => {
+    const trimmed = rawQuery.trim();
+    if (!trimmed) return [];
+
+    const query = canon(trimmed);
+    const results: FoodItem[] = [];
+
+    for (const [key, value] of Object.entries(menuMap)) {
+      if (key.includes(query) || query.includes(key)) {
+        results.push({
+          food_name: key,
+          ...value,
+        });
+      }
+    }
+
+    return typeof limit === "number" ? results.slice(0, limit) : results;
+  };
+
+  const liveSuggestions = useMemo(() => buildMatchedFoods(searchQuery, 8), [searchQuery, menuMap]);
+
   useEffect(() => {
     setIsClient(true);
     const storedMemberId = localStorage.getItem("yochiMemberId");
@@ -43,17 +64,7 @@ export default function SearchPage() {
       return;
     }
 
-    const query = canon(searchQuery.trim());
-    const results: FoodItem[] = [];
-
-    for (const [key, value] of Object.entries(menuMap)) {
-      if (key.includes(query) || query.includes(key)) {
-        results.push({
-          food_name: key,
-          ...value,
-        });
-      }
-    }
+    const results = buildMatchedFoods(searchQuery);
 
     setSearchResults(results);
     setHasSearched(true);
@@ -132,19 +143,43 @@ export default function SearchPage() {
                     setSearchQuery(e.target.value);
                     if (hasSearched) setHasSearched(false);
                   }}
-                  onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                      handleSearch();
+                    }
+                  }}
                   placeholder="食材名を入力してください"
                   disabled={!isClient}
                   className="w-full px-4 py-3 pr-10 border border-[#D3C5B9] rounded-xl bg-white text-[#4D3F36] placeholder-[#9CA3AF] focus:outline-none focus:ring-2 focus:ring-[#9c7b6c]"
                 />
                 {searchQuery && (
                   <button
+                    type="button"
                     onClick={() => setSearchQuery("")}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9CA3AF] hover:text-[#6B7280]"
                     aria-label="入力をクリア"
                   >
                     <X className="w-5 h-5" />
                   </button>
+                )}
+                {isClient && searchQuery.trim().length > 0 && liveSuggestions.length > 0 && (
+                  <div className="absolute left-0 right-0 top-[calc(100%+0.4rem)] z-20 max-h-64 overflow-y-auto rounded-xl border border-[#D3C5B9] bg-white shadow-lg">
+                    {liveSuggestions.map((food) => (
+                      <button
+                        key={`suggest-${food.food_name}`}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setSearchQuery(food.food_name);
+                          setSearchResults(buildMatchedFoods(food.food_name));
+                          setHasSearched(true);
+                        }}
+                        className="block w-full border-b border-[#F0E4D8] px-4 py-3 text-left text-sm text-[#4D3F36] hover:bg-[#F8E8E8] last:border-b-0"
+                      >
+                        {food.food_name}
+                      </button>
+                    ))}
+                  </div>
                 )}
               </div>
               <button
