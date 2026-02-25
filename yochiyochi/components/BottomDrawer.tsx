@@ -5,7 +5,7 @@ import PhaseDescriptionBox from "@/components/PhaseDescriptionBox";
 import { PHASE_LABELS } from "@/components/checklist";
 import type { PhaseKey } from "@/types/food";
 
-type Variant = "forbidden" | "ok" | "none" | "child";
+type Variant = "forbidden" | "ok" | "none" | "child" | "forbidden_child" | "ok_child";
 
 type Props = {
   openText: string;

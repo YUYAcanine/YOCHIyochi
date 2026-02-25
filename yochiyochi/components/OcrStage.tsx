@@ -16,7 +16,6 @@
 
 import React from "react";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
-import { ChecklistButton, ChecklistPanel } from "@/components/checklist";
 import OcrImage from "@/components/OcrImage";
 import type { PhaseKey } from "@/types/food";
 import type { ComponentProps } from "react";
@@ -25,7 +24,7 @@ type OcrImageProps = ComponentProps<typeof OcrImage>;
 type Box = OcrImageProps["boxes"][number];
 type ScaleInfo = OcrImageProps["scale"];
 
-type Variant = "forbidden" | "ok" | "none" | "child";
+type Variant = "forbidden" | "ok" | "none" | "child" | "forbidden_child" | "ok_child";
 
 type Props = {
   imgSrc: string;
@@ -59,11 +58,6 @@ export default function OcrStage({
 }: Props) {
   return (
     <div className="relative flex flex-col flex-grow h-[calc(100svh-var(--ribbon-h))] px-3">
-      <div className="flex-none py-2">
-        <ChecklistButton />
-        <ChecklistPanel />
-      </div>
-
       <div
         className={`relative flex-grow transition-transform duration-500 will-change-transform ${
           drawerOpen ? "-translate-y-[var(--ribbon-shift)]" : "translate-y-0"
