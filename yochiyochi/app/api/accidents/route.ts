@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
+import { resolveFoodId } from "@/lib/foodNameResolver";
 
 export const runtime = "nodejs";
 
@@ -16,36 +17,6 @@ const toGardenId = (memberId: string): string | null => {
   const digits = memberId.replace(/\D/g, "");
   if (!digits) return null;
   return digits;
-};
-
-const resolveFoodId = async (gardenId: string, foodName: string): Promise<number | null> => {
-  const trimmed = foodName.trim();
-  if (!trimmed) return null;
-
-  const { data: aCook, error: aError } = await supabase
-    .from("A_cook")
-    .select("id")
-    .eq("food_name", trimmed)
-    .limit(1)
-    .maybeSingle();
-
-  if (!aError && aCook?.id != null) {
-    const id = Number(aCook.id);
-    if (Number.isFinite(id)) return id;
-  }
-
-  const { data: bCook, error: bError } = await supabase
-    .from("B_cook")
-    .select("food_id")
-    .eq("garden_id", gardenId)
-    .eq("food_name", trimmed)
-    .not("food_id", "is", null)
-    .limit(1)
-    .maybeSingle();
-
-  if (bError || bCook?.food_id == null) return null;
-  const id = Number(bCook.food_id);
-  return Number.isFinite(id) ? id : null;
 };
 
 const resolveEnjiId = async (gardenId: string, childName: string): Promise<number | null> => {

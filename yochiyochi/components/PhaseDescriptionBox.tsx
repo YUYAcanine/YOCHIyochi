@@ -35,11 +35,9 @@ export default function PhaseDescriptionBox({
   return (
     <div className={`w-full p-2 border rounded mt-2 ${colorClass}`}>
       {label && <div className="text-xs text-zinc-500 mb-1">{label}</div>}
-      <textarea
-        value={description}
-        readOnly
-        className="w-full bg-transparent outline-none resize-y"
-      />
+      <div className="max-h-[40svh] overflow-y-auto whitespace-pre-wrap break-words leading-relaxed">
+        {description}
+      </div>
     </div>
   );
 }
