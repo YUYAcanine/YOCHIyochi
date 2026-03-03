@@ -1152,23 +1152,23 @@ export default function Page4() {
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  startInlineCookEdit(foodName);
-                }}
-                className="rounded p-1 text-[#2f2a27] hover:bg-[#e7ddd3]"
-                aria-label={`${foodName}を編集`}
-              >
-                <Pencil size={18} />
-              </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
                   toggleExpanded(foodName);
                 }}
                 className="rounded p-1 text-[#2f2a27]"
                 aria-label={`${foodName}を${expandedNames[foodName] ? "収納" : "展開"}`}
               >
                 {expandedNames[foodName] ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  startInlineCookEdit(foodName);
+                }}
+                className="rounded p-1 text-[#2f2a27] hover:bg-[#e7ddd3]"
+                aria-label={`${foodName}を編集`}
+              >
+                <Pencil size={18} />
               </button>
             </div>
           </div>
@@ -1253,21 +1253,21 @@ export default function Page4() {
           <div className="grid grid-cols-3 gap-1 border-b-[6px] border-[#b79074]">
             <button
               type="button"
-              onClick={() => handleTabChange("child")}
-              className={`rounded-t-md py-2 text-base font-bold ${
-                activeTab === "child" ? "bg-[#B79074] text-white" : "bg-[#ece4dc] text-[#7d7570]"
-              }`}
-            >
-              園児情報
-            </button>
-            <button
-              type="button"
               onClick={() => handleTabChange("cook")}
               className={`rounded-t-md py-2 text-base font-bold ${
                 activeTab === "cook" ? "bg-[#B79074] text-white" : "bg-[#ece4dc] text-[#7d7570]"
               }`}
             >
               調理方法
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTabChange("child")}
+              className={`rounded-t-md py-2 text-base font-bold ${
+                activeTab === "child" ? "bg-[#B79074] text-white" : "bg-[#ece4dc] text-[#7d7570]"
+              }`}
+            >
+              園児情報
             </button>
             <button
               type="button"
