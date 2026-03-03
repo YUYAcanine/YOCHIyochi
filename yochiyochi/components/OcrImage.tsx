@@ -71,11 +71,11 @@ export default function OcrImage({
       case "ok":
         return "border-2 border-yellow-500";
       case "child":
-        return "border-2 border-green-500";
+        return "border-2 border-red-500";
       case "forbidden_child":
-        return "border-2 border-red-500 ring-2 ring-green-500";
+        return "border-2 border-red-500 ring-2 ring-red-500";
       case "ok_child":
-        return "border-2 border-yellow-500 ring-2 ring-green-500";
+        return "border-2 border-yellow-500 ring-2 ring-red-500";
       default:
         return "border-2 border-transparent";
     }

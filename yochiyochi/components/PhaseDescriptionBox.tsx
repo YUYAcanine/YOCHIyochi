@@ -16,7 +16,7 @@ const classesByVariant: Record<Variant, string> = {
   forbidden: "bg-red-100 border-red-400 text-red-800",
   ok: "bg-yellow-100 border-yellow-400 text-zinc-800",
   none: "bg-gray-100 border-gray-400 text-zinc-800",
-  child: "bg-green-50 border-green-200 text-green-800",
+  child: "bg-red-100 border-red-400 text-zinc-800",
   forbidden_child: "bg-red-100 border-red-400 text-red-800",
   ok_child: "bg-yellow-100 border-yellow-400 text-zinc-800",
 };
