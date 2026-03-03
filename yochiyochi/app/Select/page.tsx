@@ -279,16 +279,24 @@ export default function Page2() {
   );
 
   const formatChildNotes = useCallback((entries: Array<{ name: string; note: string | null }>) => {
-    const childLabel = "食べさせてはいけない園児";
-    const noteLabel = "備考";
-    const names = entries.map((entry) => entry.name).filter(Boolean).join("、");
-    const notes = entries
-      .map((entry) => (entry.note ? `${entry.name}: ${entry.note}` : ""))
-      .filter(Boolean);
-    const lines = [];
-    if (names) lines.push(`${childLabel}: ${names}`);
-    if (notes.length > 0) lines.push(`${noteLabel}: ${notes.join(" / ")}`);
-    return lines.join("\n");
+    const normalized = entries
+      .map((entry) => ({
+        name: (entry.name ?? "").trim(),
+        note: (entry.note ?? "").trim(),
+      }))
+      .filter((entry) => entry.name.length > 0);
+
+    const names = Array.from(new Set(normalized.map((entry) => entry.name))).join("、") || "未登録";
+    const notes = Array.from(
+      new Set(
+        normalized
+          .filter((entry) => entry.note.length > 0)
+          .map((entry) => entry.note)
+      )
+    );
+
+    const noteText = notes.length > 0 ? notes.join(" / ") : "なし";
+    return `園児名：${names}\n注意事項：${noteText}`;
   }, []);
 
   // 事故情報

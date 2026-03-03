@@ -62,7 +62,7 @@ export default function BottomDrawer({
         role="dialog"
         aria-label="説明"
       >
-        <div className="mx-auto max-w-3xl rounded-t-2xl border border-zinc-200 bg-[#F8E8E8] shadow-2xl p-4">
+        <div className="mx-auto max-w-3xl rounded-t-2xl border border-[#E3D4C7] bg-[#F5EDE6] shadow-2xl p-4">
         <div className="flex items-center justify-between mb-2">
           <div className="text-sm text-zinc-700">
             食材名：<span className="font-medium text-zinc-900">{openText}</span>
@@ -70,8 +70,8 @@ export default function BottomDrawer({
           <button
             type="button"
             onClick={onClose}
-            className="flex items-center justify-center w-10 h-10 rounded-lg
-                       bg-[#5C3A2E] hover:bg-[#6E4B3F] text-white text-2xl font-bold transition"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border-2 border-[#D8C7B8]
+                       bg-[#EFE4DA] text-2xl font-semibold leading-none text-[#5B4A3F] transition hover:bg-[#E6D8CC]"
             aria-label="閉じる"
           >
             ×
@@ -139,7 +139,7 @@ export default function BottomDrawer({
                 閉じる
               </button>
             </div>
-            <div className="bg-[#F8E8E8] rounded-lg p-4 border border-[#E8DCD0]">
+            <div className="bg-[#F5EDE6] rounded-lg p-4 border border-[#E3D4C7]">
               <div className="text-[#4D3F36] leading-relaxed whitespace-pre-wrap">
                 {accidentInfo}
               </div>
