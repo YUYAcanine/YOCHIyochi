@@ -29,6 +29,7 @@ import { useAccidentInfo } from "@/hooks/useAccidentInfo";
 import { useImageInput } from "@/hooks/useImageInput";
 
 import { canon } from "@/lib/textNormalize";
+import { trackGaEvent } from "@/lib/ga";
 import { supabase } from "@/lib/supabaseClient";
 import type { PhaseKey } from "@/types/food";
 
@@ -422,6 +423,10 @@ export default function Page2() {
   const handlePickText = useCallback(
     (text: string) => {
       setSelectedText(text);
+      trackGaEvent("tap_food", {
+        food_name: text,
+        source: "ocr",
+      });
     },
     []
   );
