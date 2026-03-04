@@ -32,6 +32,11 @@ type BCookRow = {
   phase5: string | null;
 };
 
+type FoodAliasRow = {
+  food_name: string | null;
+  fluctuation_name: string | null;
+};
+
 const toGardenId = (memberId: string): string | null => {
   const digits = memberId.replace(/\D/g, "");
   if (!digits) return null;
@@ -43,6 +48,7 @@ export function useMenuData(memberId?: string | null, reloadTick?: number) {
   const [foodIdMap, setFoodIdMap] = useState<Record<string, number>>({});
   const [cookIdMap, setCookIdMap] = useState<Record<string, number>>({});
   const [foodNameOptions, setFoodNameOptions] = useState<string[]>([]);
+  const [canonicalNameMap, setCanonicalNameMap] = useState<Record<string, string>>({});
   const [eventTick, setEventTick] = useState(0);
 
   useEffect(() => {
@@ -66,7 +72,9 @@ export function useMenuData(memberId?: string | null, reloadTick?: number) {
         const rows = data as unknown as ACookRow[];
         const map: Record<string, MenuInfo> = {};
         const idMap: Record<string, number> = {};
+        const displayMap: Record<string, string> = {};
         const idToKey = new Map<string, string>();
+        const canonicalKeyToId = new Map<string, number>();
         const nameSet = new Set<string>();
 
         for (const row of rows) {
@@ -81,7 +89,9 @@ export function useMenuData(memberId?: string | null, reloadTick?: number) {
           const numericId = Number(row.id);
           if (!Number.isFinite(numericId)) continue;
           idMap[key] = numericId;
+          displayMap[key] = displayName || (row.food_name ?? "");
           idToKey.set(String(row.id), key);
+          canonicalKeyToId.set(key, numericId);
           map[key] = {
             phase1: row.phase1?.trim() ?? undefined,
             phase2: row.phase2?.trim() ?? undefined,
@@ -89,6 +99,26 @@ export function useMenuData(memberId?: string | null, reloadTick?: number) {
             phase4: row.phase4?.trim() ?? undefined,
             phase5: row.phase5?.trim() ?? undefined,
           };
+        }
+
+        const { data: aliasData, error: aliasError } = await supabase
+          .from("A_fuluctuation")
+          .select("food_name, fluctuation_name");
+
+        if (!aliasError && aliasData) {
+          (aliasData as FoodAliasRow[]).forEach((row) => {
+            const canonicalKey = canon(row.food_name ?? "");
+            const aliasKey = canon(row.fluctuation_name ?? "");
+            if (!canonicalKey || !aliasKey || !map[canonicalKey]) return;
+
+            map[aliasKey] = map[canonicalKey];
+            displayMap[aliasKey] = displayMap[canonicalKey] ?? (row.food_name ?? "");
+
+            const foodId = canonicalKeyToId.get(canonicalKey);
+            if (foodId != null) {
+              idMap[aliasKey] = foodId;
+            }
+          });
         }
 
         if (memberId) {
@@ -138,6 +168,7 @@ export function useMenuData(memberId?: string | null, reloadTick?: number) {
         setMenuMap(map);
         setFoodIdMap(idMap);
         setCookIdMap({});
+        setCanonicalNameMap(displayMap);
         setFoodNameOptions(
           Array.from(nameSet).sort((a, b) => a.localeCompare(b, "ja"))
         );
@@ -169,5 +200,12 @@ export function useMenuData(memberId?: string | null, reloadTick?: number) {
     });
   };
 
-  return { menuMap, foodIdMap, cookIdMap, foodNameOptions, updateMenuForKey };
+  return {
+    menuMap,
+    foodIdMap,
+    cookIdMap,
+    foodNameOptions,
+    canonicalNameMap,
+    updateMenuForKey,
+  };
 }

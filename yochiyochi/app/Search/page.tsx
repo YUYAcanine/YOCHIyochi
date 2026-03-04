@@ -28,7 +28,7 @@ export default function SearchPage() {
   const [hasSearched, setHasSearched] = useState(false);
   const [memberId, setMemberId] = useState<string | null>(null);
 
-  const { menuMap, foodIdMap } = useMenuData(memberId);
+  const { menuMap, foodIdMap, canonicalNameMap } = useMenuData(memberId);
   const { accidentInfo, showAccidentInfo, fetchByFoodId, reset } = useAccidentInfo();
 
   const buildMatchedFoods = (rawQuery: string, limit?: number): FoodItem[] => {
@@ -37,11 +37,16 @@ export default function SearchPage() {
 
     const query = canon(trimmed);
     const results: FoodItem[] = [];
+    const seen = new Set<string>();
 
     for (const [key, value] of Object.entries(menuMap)) {
       if (key.includes(query) || query.includes(key)) {
+        const displayName = canonicalNameMap[key] ?? key;
+        const resultKey = String(foodIdMap[key] ?? displayName);
+        if (seen.has(resultKey)) continue;
+        seen.add(resultKey);
         results.push({
-          food_name: key,
+          food_name: displayName,
           ...value,
         });
       }
@@ -172,9 +177,9 @@ export default function SearchPage() {
                 )}
                 {isClient && showSuggestions && searchQuery.trim().length > 0 && liveSuggestions.length > 0 && (
                   <div className="absolute left-0 right-0 top-[calc(100%+0.4rem)] z-20 max-h-64 overflow-y-auto rounded-xl border border-[#D3C5B9] bg-white shadow-lg">
-                    {liveSuggestions.map((food) => (
+                    {liveSuggestions.map((food, index) => (
                       <button
-                        key={`suggest-${food.food_name}`}
+                        key={`suggest-${food.food_name}-${index}`}
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => {
