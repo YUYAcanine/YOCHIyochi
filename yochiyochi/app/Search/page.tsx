@@ -9,6 +9,7 @@ import PhaseSelectDropdown from "@/components/PhaseSelectDropdown";
 import { PHASE_LABELS } from "@/components/checklist";
 import { useMenuData } from "@/hooks/useMenuData";
 import { useAccidentInfo } from "@/hooks/useAccidentInfo";
+import { trackGaEvent } from "@/lib/ga";
 import type { PhaseKey } from "@/types/food";
 
 type Variant = "forbidden" | "ok" | "none";
@@ -75,11 +76,19 @@ export default function SearchPage() {
     setSearchResults(results);
     setHasSearched(true);
     setShowSuggestions(false);
+    trackGaEvent("search_food", {
+      search_term: searchQuery.trim(),
+      result_count: results.length,
+    });
   };
 
-  const handleSelectFood = (food: FoodItem) => {
+  const handleSelectFood = (food: FoodItem, source: "search_result" | "suggestion" = "search_result") => {
     setSelectedFood(food);
     reset();
+    trackGaEvent("tap_food", {
+      food_name: food.food_name,
+      source,
+    });
   };
 
   const handleShowAccidentInfo = async () => {
@@ -187,6 +196,10 @@ export default function SearchPage() {
                           setSearchResults(buildMatchedFoods(food.food_name));
                           setHasSearched(true);
                           setShowSuggestions(false);
+                          trackGaEvent("tap_food", {
+                            food_name: food.food_name,
+                            source: "suggestion",
+                          });
                         }}
                         className="block w-full border-b border-[#F0E4D8] px-4 py-3 text-left text-sm text-[#4D3F36] hover:bg-[#F8E8E8] last:border-b-0"
                       >
@@ -220,7 +233,7 @@ export default function SearchPage() {
                     {searchResults.map((food, index) => (
                       <button
                         key={`${food.food_name}-${index}`}
-                        onClick={() => handleSelectFood(food)}
+                        onClick={() => handleSelectFood(food, "search_result")}
                         className="w-full p-4 text-left bg-white border border-[#D3C5B9] rounded-xl hover:bg-[#F8E8E8] transition text-[#4D3F36]"
                       >
                         {food.food_name}
