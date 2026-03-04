@@ -3,6 +3,7 @@ import "./globals.css";
 import { ChecklistProvider } from "@/components/checklist";
 import Script from "next/script";
 import GoogleAnalytics from "@/components/GoogleAnalytics";
+import { Suspense } from "react";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const gaId = process.env.NEXT_PUBLIC_GA_ID;
@@ -31,7 +32,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <ChecklistProvider>{children}</ChecklistProvider>
-        {gaId && <GoogleAnalytics gaId={gaId} />}
+        {gaId && (
+          <Suspense fallback={null}>
+            <GoogleAnalytics gaId={gaId} />
+          </Suspense>
+        )}
       </body>
     </html>
   );
