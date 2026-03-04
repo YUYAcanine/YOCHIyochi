@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
+import { resolveFoodId } from "@/lib/foodNameResolver";
 
 export const runtime = "nodejs";
 
@@ -36,32 +37,6 @@ const readChildName = (row: EnjiRow): string =>
 
 const readAgeMonth = (row: EnjiRow): number =>
   Number(row.age ?? 0);
-
-const resolveFoodId = async (gardenId: string, foodName: string): Promise<number | null> => {
-  const trimmed = foodName.trim();
-  if (!trimmed) return null;
-
-  const { data: aCook, error: aCookError } = await supabase
-    .from("A_cook")
-    .select("id")
-    .eq("food_name", trimmed)
-    .limit(1)
-    .maybeSingle();
-
-  if (!aCookError && aCook) return aCook.id;
-
-  const { data: bCook, error: bCookError } = await supabase
-    .from("B_cook")
-    .select("food_id")
-    .eq("garden_id", gardenId)
-    .eq("food_name", trimmed)
-    .not("food_id", "is", null)
-    .limit(1)
-    .maybeSingle();
-
-  if (bCookError || !bCook || typeof bCook.food_id !== "number") return null;
-  return bCook.food_id;
-};
 
 const upsertEnji = async (
   gardenId: string,
@@ -271,7 +246,7 @@ export async function GET(req: Request) {
       new Set(foodRows.map((row) => row.food_id).filter((id): id is number => typeof id === "number"))
     );
 
-    let foodNameMap = new Map<number, string>();
+    const foodNameMap = new Map<number, string>();
     if (foodIds.length > 0) {
       const [{ data: aCookData }, { data: bCookData }] = await Promise.all([
         supabase.from("A_cook").select("id, food_name").in("id", foodIds),
