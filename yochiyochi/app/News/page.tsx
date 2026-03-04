@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -7,7 +7,7 @@ import Ribbon from "@/components/Ribbon";
 type NewsItem = {
   id: number;
   food_name: string;
-  detail: string | null;
+  accident_content: string | null;
   created_at: string;
 };
 
@@ -22,7 +22,7 @@ export default function NewsPage() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch("/api/meal-records?type=hiyari&limit=200", {
+        const res = await fetch("/api/accidents?public=true&limit=200", {
           cache: "no-store",
         });
         if (!res.ok) throw new Error("fetch failed");
@@ -55,9 +55,9 @@ export default function NewsPage() {
 
       <div className="pt-24 px-6 pb-10 max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl font-bold text-[#5C3A2E]">保育ニュース</h1>
+          <h1 className="text-xl font-bold text-[#5C3A2E]">ヒヤリハット事例</h1>
           <span className="text-xs font-semibold text-[#8A776A]">
-            ヒヤリハット速報
+            ヒヤリハット情報
           </span>
         </div>
 
@@ -76,9 +76,9 @@ export default function NewsPage() {
                     <div className="text-sm font-semibold text-[#4D3F36]">
                       {item.food_name}
                     </div>
-                    {item.detail && (
+                    {item.accident_content && (
                       <p className="text-sm text-[#6B5A4E] mt-1">
-                        {item.detail}
+                        {item.accident_content}
                       </p>
                     )}
                     <div className="text-xs text-[#8A776A] mt-2">
@@ -88,7 +88,9 @@ export default function NewsPage() {
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-[#6B5A4E]">新しいヒヤリハットはありません。</p>
+              <p className="text-sm text-[#6B5A4E]">
+                新しいヒヤリハットはありません。
+              </p>
             )}
           </div>
         )}
@@ -105,3 +107,5 @@ export default function NewsPage() {
     </main>
   );
 }
+
+

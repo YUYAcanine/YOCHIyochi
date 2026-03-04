@@ -4,13 +4,18 @@ import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 type AccidentRow = {
-  description_accident: string | null;
+  accident_detail: string | null;
 };
 
-type MealRecordRow = {
-  food_name: string;
-  detail: string | null;
+type HiyariRow = {
+  accident_content: string | null;
   created_at: string;
+};
+
+const toGardenId = (memberId: string): string | null => {
+  const digits = memberId.replace(/\D/g, "");
+  if (!digits) return null;
+  return digits;
 };
 
 export function useAccidentInfo() {
@@ -23,26 +28,39 @@ export function useAccidentInfo() {
   }, []);
 
   const fetchByFoodId = useCallback(
-    async (foodId: number | null, _memberId?: string | null) => {
+    async (foodId: number | null, memberId?: string | null) => {
       if (!foodId) {
-        setAccidentInfo("該当する食材の事故情報が見つかりません。");
+        setAccidentInfo("事故情報が見つかりません。");
         setShowAccidentInfo(true);
         return;
       }
 
       try {
         const accidentPromise = supabase
-          .from("yochiyochi_accidentlist")
-          .select("description_accident")
+          .from("A_accident")
+          .select("accident_detail")
           .eq("food_id", foodId);
 
-        const hiyariQuery = supabase
-          .from("yochiyochi_meal_records")
-          .select("food_name, detail, created_at")
-          .eq("record_type", "hiyari")
+        let hiyariQuery = supabase
+          .from("B_accident")
+          .select("accident_content, created_at")
           .eq("food_id", foodId)
           .order("created_at", { ascending: false })
           .limit(5);
+
+        const gardenId = memberId ? toGardenId(memberId) : null;
+        if (gardenId != null) {
+          const { data: enjiRows } = await supabase
+            .from("B_enji")
+            .select("id")
+            .eq("garden_id", gardenId);
+          const enjiIds = ((enjiRows ?? []) as Array<{ id: number }>).map((row) => row.id);
+          if (enjiIds.length > 0) {
+            hiyariQuery = hiyariQuery.in("enji_id", enjiIds);
+          } else {
+            hiyariQuery = hiyariQuery.eq("enji_id", -1);
+          }
+        }
 
         const [
           { data: accidentData, error: accidentError },
@@ -52,9 +70,9 @@ export function useAccidentInfo() {
         const sections: string[] = [];
 
         if (!accidentError) {
-          const rows = (accidentData ?? []) as unknown as AccidentRow[];
+          const rows = (accidentData ?? []) as AccidentRow[];
           const descriptions = rows
-            .map((row, i) => `${i + 1}. ${row.description_accident ?? ""}`.trim())
+            .map((row, i) => `${i + 1}. ${row.accident_detail ?? ""}`.trim())
             .filter((s) => s !== "")
             .join("\n\n");
           if (descriptions) {
@@ -63,12 +81,9 @@ export function useAccidentInfo() {
         }
 
         if (!hiyariError) {
-          const rows = (hiyariData ?? []) as unknown as MealRecordRow[];
+          const rows = (hiyariData ?? []) as HiyariRow[];
           const hiyariLines = rows
-            .map((row) => {
-              const detail = row.detail ? `：${row.detail}` : "";
-              return `・${row.food_name}${detail}`;
-            })
+            .map((row, i) => `${i + 1}. ${row.accident_content ?? ""}`.trim())
             .filter(Boolean)
             .join("\n");
           if (hiyariLines) {
