@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Search, X } from "lucide-react";
 import { canon } from "@/lib/textNormalize";
 import Ribbon from "@/components/Ribbon";
@@ -10,13 +10,22 @@ import { PHASE_LABELS } from "@/components/checklist";
 import { useMenuData } from "@/hooks/useMenuData";
 import { useAccidentInfo } from "@/hooks/useAccidentInfo";
 import { trackGaEvent } from "@/lib/ga";
+import { supabase } from "@/lib/supabaseClient";
 import type { PhaseKey } from "@/types/food";
 
-type Variant = "forbidden" | "ok" | "none";
+type Variant = "forbidden" | "ok" | "none" | "child" | "forbidden_child" | "ok_child";
+type CookVariant = "forbidden" | "ok" | "none";
 type MenuInfo = Partial<Record<PhaseKey, string>>;
 
 type FoodItem = MenuInfo & {
   food_name: string;
+};
+
+type ChildFoodItem = {
+  child_name: string;
+  no_eat: string;
+  can_eat: boolean | null;
+  note: string | null;
 };
 
 export default function SearchPage() {
@@ -28,6 +37,7 @@ export default function SearchPage() {
   const [isClient, setIsClient] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [memberId, setMemberId] = useState<string | null>(null);
+  const [enjiFoodItems, setEnjiFoodItems] = useState<ChildFoodItem[]>([]);
 
   const { menuMap, foodIdMap, canonicalNameMap } = useMenuData(memberId);
   const { accidentInfo, showAccidentInfo, fetchByFoodId, reset } = useAccidentInfo();
@@ -62,6 +72,176 @@ export default function SearchPage() {
     setIsClient(true);
     const storedMemberId = localStorage.getItem("yochiMemberId");
     setMemberId(storedMemberId);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchEnjiFoodItems = async () => {
+      if (!memberId) {
+        setEnjiFoodItems([]);
+        return;
+      }
+
+      const rawGardenId = memberId.trim();
+      const digitGardenId = memberId.replace(/\D/g, "");
+      const gardenCandidates = Array.from(
+        new Set([rawGardenId, digitGardenId].filter((id) => id.length > 0))
+      );
+      if (gardenCandidates.length === 0) {
+        setEnjiFoodItems([]);
+        return;
+      }
+
+      const { data: enjiFoodData, error: enjiFoodError } = await supabase
+        .from("B_enjifood")
+        .select("garden_id, enji_id, food_id, no_eat, note")
+        .in("garden_id", gardenCandidates)
+        .eq("no_eat", true);
+      if (enjiFoodError || !enjiFoodData) {
+        if (!cancelled) setEnjiFoodItems([]);
+        return;
+      }
+
+      const enjiRows = enjiFoodData as Array<{
+        garden_id: string | null;
+        enji_id: number | null;
+        food_id: number | null;
+        no_eat: boolean | null;
+        note: string | null;
+      }>;
+
+      const enjiIds = Array.from(
+        new Set(
+          enjiRows
+            .map((row) => row.enji_id)
+            .filter((id): id is number => typeof id === "number")
+        )
+      );
+      const foodIds = Array.from(
+        new Set(
+          enjiRows
+            .map((row) => row.food_id)
+            .filter((id): id is number => typeof id === "number")
+        )
+      );
+
+      const [{ data: bEnjiData }, { data: aCookData }, { data: bCookData }] = await Promise.all([
+        enjiIds.length > 0
+          ? supabase
+              .from("B_enji")
+              .select("id, name")
+              .in("id", enjiIds)
+              .in("garden_id", gardenCandidates)
+          : Promise.resolve({ data: [] }),
+        foodIds.length > 0
+          ? supabase.from("A_cook").select("id, food_name").in("id", foodIds)
+          : Promise.resolve({ data: [] }),
+        foodIds.length > 0
+          ? supabase
+              .from("B_cook")
+              .select("food_id, food_name")
+              .in("food_id", foodIds)
+              .in("garden_id", gardenCandidates)
+          : Promise.resolve({ data: [] }),
+      ]);
+
+      const enjiNameMap = new Map<number, string>();
+      ((bEnjiData ?? []) as Array<{ id: number; name: string | null }>).forEach((row) => {
+        if (typeof row.id === "number") {
+          enjiNameMap.set(row.id, row.name?.trim() ?? "");
+        }
+      });
+
+      const foodNameMap = new Map<number, string>();
+      ((aCookData ?? []) as Array<{ id: number; food_name: string | null }>).forEach((row) => {
+        if (typeof row.id === "number" && typeof row.food_name === "string") {
+          foodNameMap.set(row.id, row.food_name);
+        }
+      });
+      ((bCookData ?? []) as Array<{ food_id: number | null; food_name: string | null }>).forEach(
+        (row) => {
+          if (typeof row.food_id === "number" && typeof row.food_name === "string") {
+            foodNameMap.set(row.food_id, row.food_name);
+          }
+        }
+      );
+
+      const nextItems: ChildFoodItem[] = enjiRows
+        .map((row) => {
+          const foodId = row.food_id;
+          const enjiId = row.enji_id;
+          if (typeof foodId !== "number" || typeof enjiId !== "number") return null;
+          const childName = enjiNameMap.get(enjiId) ?? "";
+          const foodName = foodNameMap.get(foodId) ?? "";
+          if (!foodName) return null;
+          return {
+            child_name: childName,
+            no_eat: foodName,
+            can_eat: row.no_eat === null ? null : !row.no_eat,
+            note: row.note ?? null,
+          };
+        })
+        .filter((item): item is ChildFoodItem => item !== null);
+
+      if (!cancelled) {
+        setEnjiFoodItems(nextItems);
+      }
+    };
+
+    fetchEnjiFoodItems();
+    return () => {
+      cancelled = true;
+    };
+  }, [memberId]);
+
+  const childFoodMap = useMemo(() => {
+    const map = new Map<string, Array<{ name: string; note: string | null }>>();
+    for (const child of enjiFoodItems) {
+      if (child.can_eat === true) continue;
+      const items = (child.no_eat ?? "")
+        .split(/[,\s/\u3001\u30fb\uFF0C\uFF0F]+/)
+        .map((item) => canon(item))
+        .filter(Boolean);
+      const uniqueItems = Array.from(new Set(items));
+      for (const item of uniqueItems) {
+        const list = map.get(item) ?? [];
+        list.push({ name: child.child_name, note: child.note ?? null });
+        map.set(item, list);
+      }
+    }
+    return map;
+  }, [enjiFoodItems]);
+
+  const getChildEntries = useCallback(
+    (raw?: string) => {
+      const key = canon(raw);
+      if (!key) return null;
+      const list = childFoodMap.get(key);
+      return list && list.length > 0 ? list : null;
+    },
+    [childFoodMap]
+  );
+
+  const formatChildNotes = useCallback((entries: Array<{ name: string; note: string | null }>) => {
+    const normalized = entries
+      .map((entry) => ({
+        name: (entry.name ?? "").trim(),
+        note: (entry.note ?? "").trim(),
+      }))
+      .filter((entry) => entry.name.length > 0);
+
+    const names = Array.from(new Set(normalized.map((entry) => entry.name))).join("、") || "未登録";
+    const notes = Array.from(
+      new Set(
+        normalized
+          .filter((entry) => entry.note.length > 0)
+          .map((entry) => entry.note)
+      )
+    );
+
+    const noteText = notes.length > 0 ? notes.join(" / ") : "なし";
+    return `園児名：${names}\n注意事項：${noteText}`;
   }, []);
 
   const handleSearch = () => {
@@ -104,18 +284,39 @@ export default function SearchPage() {
     await fetchByFoodId(foodId ?? null, memberId);
   };
 
-  const classify = (food: FoodItem | null): { variant: Variant; text: string } => {
-    const val = food?.[phase]?.trim();
-    if (!val) return { variant: "none", text: "" };
-    if (val === "食べさせてはいけません。" || val === "食べさせてはいけません") {
-      return { variant: "forbidden", text: "食べさせてはいけません。" };
-    }
-    return { variant: "ok", text: val };
-  };
+  const classify = useCallback(
+    (food: FoodItem | null): { variant: Variant; cookVariant: CookVariant; cookText: string; childText: string } => {
+      if (!food) return { variant: "none", cookVariant: "none", cookText: "", childText: "" };
+
+      const val = food[phase]?.trim();
+      const childEntries = getChildEntries(food.food_name);
+      const childText = childEntries ? formatChildNotes(childEntries) : "";
+      const cookVariant: CookVariant = !val ? "none" : "ok";
+
+      if (cookVariant === "none") {
+        if (childEntries) {
+          return { variant: "child", cookVariant: "none", cookText: "", childText };
+        }
+        return { variant: "none", cookVariant: "none", cookText: "", childText: "" };
+      }
+
+      if (childEntries) {
+        return {
+          variant: "ok_child",
+          cookVariant,
+          cookText: val ?? "",
+          childText,
+        };
+      }
+
+      return { variant: "ok", cookVariant, cookText: val ?? "", childText: "" };
+    },
+    [phase, getChildEntries, formatChildNotes]
+  );
 
   const selected = selectedFood
     ? classify(selectedFood)
-    : { variant: "none" as Variant, text: "" };
+    : { variant: "none" as Variant, cookVariant: "none" as CookVariant, cookText: "", childText: "" };
 
   const handleCloseDrawer = () => {
     setSelectedFood(null);
@@ -253,11 +454,11 @@ export default function SearchPage() {
 
       <BottomDrawer
         openText={selectedFood?.food_name || ""}
-        cookDescription={selected.text}
-        childDescription=""
+        cookDescription={selected.cookText}
+        childDescription={selected.childText}
         phase={phase}
         variant={selected.variant}
-        cookVariant={selected.variant}
+        cookVariant={selected.cookVariant}
         onClose={handleCloseDrawer}
         onShowAccidentInfo={handleShowAccidentInfo}
         accidentInfo={accidentInfo}
