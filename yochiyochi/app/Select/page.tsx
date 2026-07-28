@@ -323,13 +323,10 @@ export default function Page2() {
       const info = menuMap[key];
       const phaseKey = toMenuPhaseKey(phase);
       const val = info?.[phaseKey]?.trim();
-      const forbiddenText = "食べさせてはいけません。";
       const cookVariant: CookVariant =
         !val
           ? "none"
-          : val === forbiddenText || val === "食べさせてはいけません"
-            ? "forbidden"
-            : "ok";
+          : "ok";
 
       if (cookVariant === "none") {
         if (childEntries) {
@@ -340,7 +337,7 @@ export default function Page2() {
 
       if (childEntries) {
         return {
-          variant: cookVariant === "forbidden" ? "forbidden_child" : "ok_child",
+          variant: "ok_child",
           cookVariant,
           cookText: val ?? "",
           childText,
