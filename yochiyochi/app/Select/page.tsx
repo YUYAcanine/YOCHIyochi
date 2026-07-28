@@ -29,6 +29,7 @@ import { useAccidentInfo } from "@/hooks/useAccidentInfo";
 import { useImageInput } from "@/hooks/useImageInput";
 
 import { canon } from "@/lib/textNormalize";
+import { trackGaEvent } from "@/lib/ga";
 import { supabase } from "@/lib/supabaseClient";
 import type { PhaseKey } from "@/types/food";
 
@@ -322,13 +323,10 @@ export default function Page2() {
       const info = menuMap[key];
       const phaseKey = toMenuPhaseKey(phase);
       const val = info?.[phaseKey]?.trim();
-      const forbiddenText = "食べさせてはいけません。";
       const cookVariant: CookVariant =
         !val
           ? "none"
-          : val === forbiddenText || val === "食べさせてはいけません"
-            ? "forbidden"
-            : "ok";
+          : "ok";
 
       if (cookVariant === "none") {
         if (childEntries) {
@@ -339,7 +337,7 @@ export default function Page2() {
 
       if (childEntries) {
         return {
-          variant: cookVariant === "forbidden" ? "forbidden_child" : "ok_child",
+          variant: "ok_child",
           cookVariant,
           cookText: val ?? "",
           childText,
@@ -422,6 +420,10 @@ export default function Page2() {
   const handlePickText = useCallback(
     (text: string) => {
       setSelectedText(text);
+      trackGaEvent("tap_food", {
+        food_name: text,
+        source: "ocr",
+      });
     },
     []
   );
