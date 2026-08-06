@@ -145,7 +145,7 @@ export default function Page1() {
               href="/login"
               className="rounded-md border-2 border-[#cda982] bg-[#f6f2ee] px-5 py-2 text-sm font-bold text-[#4b4038] hover:opacity-85"
             >
-              マイページ
+              ログイン
             </Link>
           ) : (
             <div className="flex flex-col items-end gap-2">
@@ -186,15 +186,29 @@ export default function Page1() {
               献立チェック
             </span>
           </Link>
-          <Link
-            href={isLoggedIn ? "/Register" : "/login"}
-            className="flex items-center justify-center gap-2 rounded-3xl bg-[#B79074] px-3 py-4 text-white hover:brightness-105 sm:gap-3"
-          >
-            <ButtonIcon type="edit" />
-            <span className="text-base font-semibold leading-none sm:text-2xl">
-              保育園ページ
-            </span>
-          </Link>
+          {isLoggedIn ? (
+            <Link
+              href="/Register"
+              className="flex items-center justify-center gap-2 rounded-3xl bg-[#B79074] px-3 py-4 text-white hover:brightness-105 sm:gap-3"
+            >
+              <ButtonIcon type="edit" />
+              <span className="text-base font-semibold leading-none sm:text-2xl">
+                保育園ページ
+              </span>
+            </Link>
+          ) : (
+            <Link
+              href="/login"
+              aria-label="保育園ページ（ログインが必要です）"
+              title="ログインすると利用できます"
+              className="flex items-center justify-center gap-2 rounded-3xl bg-[#4b4b4b] px-3 py-4 text-[#d8d8d8] opacity-75 hover:brightness-105 sm:gap-3"
+            >
+              <ButtonIcon type="edit" />
+              <span className="text-base font-semibold leading-none sm:text-2xl">
+                保育園ページ
+              </span>
+            </Link>
+          )}
         </div>
 
         <div className="rounded-lg border-[3px] border-[#d4b08d] bg-[#F0E4D8] p-3 sm:p-4">

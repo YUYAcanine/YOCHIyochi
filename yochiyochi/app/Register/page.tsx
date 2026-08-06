@@ -514,7 +514,12 @@ export default function Page4() {
 
   const handleDeleteChildPanel = async (name: string) => {
     if (!memberId) return;
-    if (!window.confirm(`${name}の食材情報を削除しますか？`)) return;
+    if (
+      !window.confirm(
+        `${name}の園児情報を削除しますか？\n登録済みの注意する食材もすべて削除されます。`
+      )
+    )
+      return;
 
     setFormMsg(null);
     setSubmitLoading(true);
@@ -844,16 +849,6 @@ export default function Page4() {
 
     return (
       <div key={name} className="flex items-start gap-2">
-        {activeTab === "child" && showForm && (
-          <button
-            type="button"
-            onClick={() => handleDeleteChildPanel(name)}
-            className="mt-3 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-[2px] border-[#d64a3a] bg-white text-[#d64a3a]"
-            aria-label={`${name}の食材情報を削除`}
-          >
-            <X size={14} strokeWidth={2.5} />
-          </button>
-        )}
         <div className="w-full rounded-md border border-[#E6D7C8] bg-white p-4">
           <div
             role="button"
@@ -886,10 +881,11 @@ export default function Page4() {
                   e.stopPropagation();
                   openEditorForName(name);
                 }}
-                className="rounded p-1 text-[#2f2a27] hover:bg-[#e7ddd3]"
+                className="inline-flex items-center gap-1 rounded border border-[#B79074] px-2 py-1 text-sm font-bold text-[#765B49] hover:bg-[#F0E4D8]"
                 aria-label={`${name}を編集`}
               >
-                <Pencil size={18} />
+                <Pencil size={15} />
+                編集
               </button>
             </div>
           </div>
@@ -908,22 +904,24 @@ export default function Page4() {
                 {noEatItems.map((item) => (
                   <div key={item.id} className="flex items-center gap-2">
                     {foodEditTargetName === name && (
-                      <div className="flex items-center gap-1">
+                      <div className="flex shrink-0 items-center gap-1">
                         <button
                           type="button"
                           onClick={() => handleDeleteFood(item)}
-                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-[2px] border-[#d64a3a] bg-white text-[#d64a3a]"
+                          className="inline-flex h-8 items-center gap-1 rounded border border-[#d64a3a] bg-white px-2 text-xs font-bold text-[#d64a3a]"
                           aria-label={`${item.no_eat}を削除`}
                         >
-                          <X size={14} strokeWidth={2.5} />
+                          <X size={13} strokeWidth={2.5} />
+                          削除
                         </button>
                         <button
                           type="button"
                           onClick={() => handleStartEditFood(item)}
-                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-[2px] border-[#2f2a27] bg-white text-[#2f2a27]"
+                          className="inline-flex h-8 items-center gap-1 rounded border border-[#765B49] bg-white px-2 text-xs font-bold text-[#765B49]"
                           aria-label={`${item.no_eat}を編集`}
                         >
-                          <Pencil size={14} />
+                          <Pencil size={13} />
+                          編集
                         </button>
                       </div>
                     )}
@@ -949,8 +947,26 @@ export default function Page4() {
               <form
                 onSubmit={handleInlineFoodSubmit}
                 onKeyDownCapture={preventImeEnterSubmit}
-                className="space-y-4 rounded-md bg-white p-4"
+                className="space-y-5 rounded-md border-2 border-[#D7C0AD] bg-[#FFFDF8] p-4"
               >
+	                <div className="flex items-start justify-between gap-3 border-b border-[#E6D7C8] pb-3">
+	                  <div>
+	                    <h3 className="text-lg font-bold text-[#5C3A2E]">{name}の情報を編集</h3>
+	                    <p className="mt-1 text-sm text-[#6b5a4e]">
+	                      園児名・月齢の変更、注意する食材の追加や編集ができます。
+	                    </p>
+	                  </div>
+	                  <button
+	                    type="button"
+	                    onClick={closeInlineEditor}
+	                    className="shrink-0 rounded p-1 text-[#765B49] hover:bg-[#F0E4D8]"
+	                    aria-label="編集を閉じる"
+	                  >
+	                    <X size={20} />
+	                  </button>
+	                </div>
+
+	                <h4 className="font-bold text-[#5C3A2E]">基本情報</h4>
 	                <div className="grid grid-cols-2 gap-4">
 	                  <label className="text-base font-medium text-[#2f2a27]">
 	                    園児名
@@ -972,6 +988,15 @@ export default function Page4() {
                     />
                   </label>
                 </div>
+
+	                <div className="border-t border-[#E6D7C8] pt-4">
+	                  <h4 className="font-bold text-[#5C3A2E]">
+	                    {editingAnswerId ? "注意する食材を編集" : "注意する食材を追加"}
+	                  </h4>
+	                  <p className="mt-1 text-sm text-[#6b5a4e]">
+	                    食材を変更しない場合は、空欄のまま園児情報を保存できます。
+	                  </p>
+	                </div>
 
                 <div className="grid grid-cols-2 items-end gap-4">
 	                  <label className="text-base font-medium text-[#2f2a27]">
@@ -1017,9 +1042,23 @@ export default function Page4() {
                     disabled={submitLoading}
                     className="h-12 rounded bg-[#B79074] text-base font-bold text-white disabled:opacity-70"
                   >
-                    {submitLoading ? "送信中" : editingAnswerId ? "更新" : "保存"}
+                    {submitLoading
+                      ? "送信中"
+                      : editingAnswerId
+                        ? "食材情報を更新"
+                        : noEat.trim()
+                          ? "食材を追加"
+                          : "園児情報を保存"}
                   </button>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteChildPanel(name)}
+                  disabled={submitLoading}
+                  className="w-full rounded border border-[#d64a3a] bg-white py-2 text-sm font-bold text-[#d64a3a] disabled:opacity-70"
+                >
+                  この園児を削除
+                </button>
                 {formMsg && <p className="text-sm text-[#6b5a4e]">{formMsg}</p>}
               </form>
             )}
@@ -1325,13 +1364,19 @@ export default function Page4() {
             }}
             className="mt-6 w-full rounded-sm bg-[#B79074] py-2 text-base font-bold text-white"
           >
-            {primaryActionLabel}
+            {showForm ? `${primaryActionLabel}を閉じる` : primaryActionLabel}
           </button>
 
           {showForm && (
             <div className="rounded-b-md border-x-[3px] border-b-[3px] border-[#b79074] bg-white p-4">
               {activeTab === "child" ? (
                 <form onSubmit={handleChildSubmit} onKeyDownCapture={preventImeEnterSubmit} className="space-y-4">
+                  <div>
+                    <h2 className="text-lg font-bold text-[#5C3A2E]">新しい園児を追加</h2>
+                    <p className="mt-1 text-sm text-[#6b5a4e]">
+                      まず園児名と月齢を登録します。注意する食材は登録後に追加できます。
+                    </p>
+                  </div>
                   <div className="grid grid-cols-2 gap-4">
 	                    <label className="text-base font-medium text-[#2f2a27]">
 	                      園児名
